@@ -127,7 +127,7 @@ def test_mongo_related_model_prefetch():
 @pytest.mark.django_db
 def test_mongo_aggregation_count():
     FooModel.objects.all().delete()
-    assert not FooModel.objects.exists()
+    assert not FooModel.objects.all().exists()
     assert FooModel.objects.count() == 0
 
 

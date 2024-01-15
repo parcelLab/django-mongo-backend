@@ -4,9 +4,9 @@ from collections import OrderedDict
 
 from django.contrib.postgres.search import SearchQuery, SearchVector, SearchVectorExact
 from django.db.models import Count, sql
-from django.db.models.expressions import Col, Expression, Value
+from django.db.models.expressions import BaseExpression, Col, Expression, Value
 from django.db.models.fields.related_lookups import RelatedIn
-from django.db.models.lookups import Exact, In
+from django.db.models.lookups import Exact, GreaterThanOrEqual, In, LessThanOrEqual
 from django.db.models.sql import Query
 from django.db.models.sql.where import WhereNode
 
@@ -19,6 +19,12 @@ class RequiresSearchException(Exception):
 
 class Node(ABC):
     """MongoDB Query Node"""
+
+    def __init__(self, node: Expression, mongo_meta):
+        self.node = node
+        self.mongo_meta = mongo_meta
+        if hasattr(self.node, "rhs") and isinstance(self.node.rhs, BaseExpression):
+            raise NotImplementedError(f"Subquery Expression not implemented: {str(self.node.rhs)}")
 
     def requires_search(self) -> bool:
         return False
@@ -36,7 +42,7 @@ class MongoExact(Node):
     """MongoDB Query Node for Exact"""
 
     def __init__(self, exact: Exact, mongo_meta):
-        self.node = exact
+        super().__init__(exact, mongo_meta)
         self.lhs = exact.lhs
         self.rhs = exact.rhs
         self.mongo_meta = mongo_meta
@@ -50,17 +56,29 @@ class MongoExact(Node):
             rhs = models.ObjectIdField().to_python(rhs)
         return {lhs.column: {"$eq": rhs}}
 
+    def get_search_type(self, attname):
+        if attname in self.mongo_meta["search_fields"]:
+            if "string" in self.mongo_meta["search_fields"][attname]:
+                return "text", "query"
+            else:
+                return "equals", "value"
+
     def get_mongo_search(self) -> dict:
+        query, value = self.get_search_type(self.lhs.target.attname)
         return {
-            "equals": {
+            query: {
                 "path": self.lhs.target.column,
-                "value": self.node.rhs,
+                value: self.node.rhs,
             }
         }
 
 
 class SearchNode(Node):
     """MongoDB Search Query Base Node"""
+
+    def __init__(self, node: Expression, mongo_meta):
+        self.node = node
+        self.mongo_meta = mongo_meta
 
     def requires_search(self) -> bool:
         return True
@@ -72,8 +90,8 @@ class SearchNode(Node):
 class MongoSearchVectorExact(SearchNode):
     """MongoDB Search Query Node for SearchVectorExact"""
 
-    def __init__(self, exact: SearchVectorExact):
-        self.node = exact
+    def __init__(self, exact: SearchVectorExact, mongo_meta):
+        super().__init__(exact, mongo_meta)
         self.lhs: SearchVector = exact.lhs
         self.rhs: SearchQuery = exact.rhs
 
@@ -82,7 +100,7 @@ class MongoSearchVectorExact(SearchNode):
         lhs_expressions = self.rhs.get_source_expressions()
         columns = [expression.field.column for expression in rhs_expressions]
         query = [expression.value for expression in lhs_expressions]
-        # weigh<t = lhs.weight
+        # weight = lhs.weight
         # config = lhs.config
         search_query = {"text": {"path": columns, "query": query}}
         return search_query
@@ -92,7 +110,7 @@ class MongoIn(Node):
     """MongoDB Query Node for RelatedIn"""
 
     def __init__(self, related_in: RelatedIn, mongo_meta):
-        self.node = related_in
+        super().__init__(related_in, mongo_meta)
         self.lhs = related_in.lhs
         self.rhs = related_in.rhs
         self.mongo_meta = mongo_meta
@@ -119,6 +137,39 @@ class MongoRelatedIn(MongoIn):
     pass
 
 
+class MongoEqualityComparison(Node, ABC):
+    """MongoDB Query Node for LessThanOrEqual"""
+
+    operator: str
+
+    def __init__(self, operator: LessThanOrEqual | GreaterThanOrEqual, mongo_meta):
+        super().__init__(operator, mongo_meta)
+        self.lhs = operator.lhs
+        self.rhs = operator.rhs
+        self.operator = {
+            LessThanOrEqual: "lte",
+            GreaterThanOrEqual: "gte",
+        }[type(operator)]
+        self.mongo_meta = mongo_meta
+
+    def get_mongo_query(self, is_search=False) -> dict:
+        lhs = self.lhs.target
+        rhs = self.rhs
+        if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
+            return {}
+        if isinstance(lhs, models.ObjectIdField) and isinstance(self.rhs, str):
+            rhs = models.ObjectIdField().to_python(rhs)
+        return {lhs.column: {f"${self.operator}": rhs}}
+
+    def get_mongo_search(self) -> dict:
+        return {
+            "range": {
+                "path": self.lhs.target.column,
+                self.operator: self.rhs,
+            }
+        }
+
+
 class MongoWhereNode(Node):
     """MongoDB Query Node for WhereNode"""
 
@@ -132,13 +183,15 @@ class MongoWhereNode(Node):
             if isinstance(child, Exact):
                 self.children.append(MongoExact(child, self.mongo_meta))
             elif isinstance(child, SearchVectorExact):
-                self.children.append(MongoSearchVectorExact(child))
+                self.children.append(MongoSearchVectorExact(child, self.mongo_meta))
             elif isinstance(child, RelatedIn):
                 self.children.append(MongoRelatedIn(child, self.mongo_meta))
             elif isinstance(child, In):
                 self.children.append(MongoIn(child, self.mongo_meta))
             elif isinstance(child, WhereNode):
                 self.children.append(MongoWhereNode(child, self.mongo_meta))
+            elif isinstance(child, (LessThanOrEqual, GreaterThanOrEqual)):
+                self.children.append(MongoEqualityComparison(child, self.mongo_meta))
             else:
                 raise NotImplementedError(f"Node not implemented: {type(child)}")
 
@@ -162,12 +215,13 @@ class MongoWhereNode(Node):
             raise Exception(f"Unsupported connector: {self.connector}")
 
     def get_mongo_search(self) -> dict:
-        if len(self.children) == 0:
+        child_queries = [child.get_mongo_search() for child in self.children]
+        if len(child_queries) == 0:
             return {}
-        if self.connector == "AND":
-            return {"compound": {"must": [child.get_mongo_search() for child in self.children]}}
+        elif self.connector == "AND":
+            return {"compound": {"must": child_queries}}
         elif self.connector == "OR":
-            return {"compound": {"should": [child.get_mongo_search() for child in self.children]}}
+            return {"compound": {"should": child_queries}}
         else:
             raise Exception(f"Unsupported connector: {self.connector}")
 
@@ -218,6 +272,8 @@ class MongoSelect:
                     self.cols.append(MongoValueSelect(column, alias, mongo_meta))
                 case Count():
                     self.cols.append(MongoCountSelect(column, alias, mongo_meta))
+                case SearchVector():
+                    pass  # ignoring search vector in results
                 case _:
                     raise NotImplementedError(f"Select expression not implemented: {col}")
 
@@ -237,10 +293,15 @@ class MongoOrdering:
     """MongoDB Query Node for Ordering"""
 
     def __init__(self, query: Query):
+        self.query = query
         self.order = query.order_by
 
     def get_mongo_order(self):
+        return self.get_mongo_search_order()
+
+    def get_mongo_search_order(self):
         mongo_order = {}
+        fields = {field.name: field for field in self.query.model._meta.get_fields()}
         for field in self.order or []:
             if field.startswith("-"):
                 ordering = -1
@@ -248,7 +309,7 @@ class MongoOrdering:
             else:
                 ordering = 1
             field = "_id" if field == "pk" else field
-            mongo_order.update({field: ordering})
+            mongo_order.update({fields[field].column: ordering})
         return mongo_order
 
 

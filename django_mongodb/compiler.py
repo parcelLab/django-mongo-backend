@@ -1,3 +1,4 @@
+from functools import cached_property
 from itertools import chain
 
 from django.db.models.sql.compiler import (
@@ -20,7 +21,7 @@ from django_mongodb.query import MongoOrdering, MongoSelect, MongoWhereNode
 
 class SQLCompiler(BaseSQLCompiler):
     def build_filter(self, filter_expr):
-        return MongoWhereNode(filter_expr, self.get_mongo_meta()).get_mongo_query()
+        return MongoWhereNode(filter_expr, self.mongo_meta).get_mongo_query()
 
     def as_operation(self, with_limits=True, with_col_aliases=False):
         combinator = self.query.combinator
@@ -36,11 +37,21 @@ class SQLCompiler(BaseSQLCompiler):
             raise NotImplementedError
 
         pipeline = []
-        if self.where:
+        mongo_where = MongoWhereNode(self.where, self.mongo_meta)
+        build_search_pipeline = (
+            hasattr(self.query, "prefer_search") and self.query.prefer_search
+        ) or mongo_where.requires_search()
+        if self.where and build_search_pipeline:
+            search = mongo_where.get_mongo_search()
+            order = MongoOrdering(self.query).get_mongo_search_order()
+            pipeline.append({"$search": search})
+            if self.query.order_by:
+                search["sort"] = {**order}
+        elif self.where:
             filter = self.build_filter(self.where)
             pipeline.append({"$match": filter})
 
-        if self.query.order_by:
+        if self.query.order_by and not build_search_pipeline:
             order = MongoOrdering(self.query).get_mongo_order()
             pipeline.append({"$sort": order})
 
@@ -51,7 +62,7 @@ class SQLCompiler(BaseSQLCompiler):
             pipeline.append({"$limit": self.query.high_mark})
 
         if select_cols := self.select + extra_select:
-            select_pipeline = MongoSelect(select_cols, self.get_mongo_meta()).get_mongo()
+            select_pipeline = MongoSelect(select_cols, self.mongo_meta).get_mongo()
             pipeline.extend(select_pipeline)
 
         referenced_tables = set()
@@ -72,7 +83,8 @@ class SQLCompiler(BaseSQLCompiler):
             ],
         }
 
-    def get_mongo_meta(self):
+    @cached_property
+    def mongo_meta(self):
         if hasattr(self.query.model, "MongoMeta"):
             _meta = self.query.model.MongoMeta
             return {
@@ -102,7 +114,11 @@ class SQLCompiler(BaseSQLCompiler):
         if result_type == CURSOR:
             return cursor
         if result_type == SINGLE:
-            return cursor.fetchone()
+            cols = [col for col in self.select[0 : self.col_count]]
+            result = cursor.fetchone()
+            if result:
+                return (result.get(alias or col.target.attname) for col, _, alias in cols)
+            return result
         if result_type == NO_RESULTS:
             cursor.close()
             return
@@ -144,9 +160,11 @@ class SQLCompiler(BaseSQLCompiler):
         rows = chain.from_iterable(results)
         # Temporary mapping of dict to tuple, until we move this to 'project'
         _row_tuples = []
-        fields = [s[0] for s in self.select[0 : self.col_count]]
+        cols = self.select[0 : self.col_count]
         for row in rows:
-            _row_tuples.append(tuple(row.get(field.target.attname) for field in fields))
+            _row_tuples.append(
+                tuple(row.get(alias or col.target.attname) for col, _, alias in cols)
+            )
 
         if converters:
             _row_tuples = self.apply_converters(_row_tuples, converters)
