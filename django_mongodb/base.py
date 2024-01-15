@@ -1,14 +1,13 @@
 from django.db.backends.base.base import BaseDatabaseWrapper
 from pymongo import MongoClient
 
-from django_mongodb.introspection import DatabaseIntrospection
+import django_mongodb.database as Database
 from django_mongodb.client import DatabaseClient
 from django_mongodb.creation import DatabaseCreation
 from django_mongodb.cursor import Cursor
 from django_mongodb.features import DatabaseFeatures
+from django_mongodb.introspection import DatabaseIntrospection
 from django_mongodb.operations import DatabaseOperations
-
-import django_mongodb.database as Database
 from django_mongodb.schema import DatabaseSchemaEditor
 
 

@@ -5,11 +5,11 @@ from bson import ObjectId
 
 from refapp.models import RefModel
 from testapp.models import (
+    DifferentTableOneToOne,
     FooModel,
+    RelatedModel,
     SameTableChild,
     SameTableOneToOne,
-    RelatedModel,
-    DifferentTableOneToOne,
 )
 
 

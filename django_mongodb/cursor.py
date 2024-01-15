@@ -1,9 +1,9 @@
 from pymongo.cursor import Cursor as MongoCursor
 from pymongo.results import (
-    InsertManyResult,
     DeleteResult,
-    UpdateResult,
+    InsertManyResult,
     InsertOneResult,
+    UpdateResult,
 )
 
 from django_mongodb.database import InterfaceError, NotSupportedError
