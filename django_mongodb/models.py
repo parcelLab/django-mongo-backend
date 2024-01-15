@@ -27,6 +27,8 @@ class ObjectIdFieldMixin:
     def get_prep_value(self, value):
         if value is None:
             return None
+        if isinstance(value, str):
+            return bson.ObjectId(value)
         return bson.ObjectId(value)
 
 
