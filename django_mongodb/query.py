@@ -1,9 +1,9 @@
 import abc
 from abc import ABC
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
 
-from django.contrib.postgres.search import SearchVectorExact, SearchQuery, SearchVector
-from django.db.models import sql, Count
+from django.contrib.postgres.search import SearchQuery, SearchVector, SearchVectorExact
+from django.db.models import Count, sql
 from django.db.models.expressions import Col, Expression, Value
 from django.db.models.fields.related_lookups import RelatedIn
 from django.db.models.lookups import Exact, In

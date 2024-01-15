@@ -2,18 +2,20 @@ from itertools import chain
 
 from django.db.models.sql.compiler import (
     SQLCompiler as BaseSQLCompiler,
+)
+from django.db.models.sql.compiler import (
     SQLInsertCompiler as BaseSQLInsertCompiler,
 )
 from django.db.models.sql.constants import (
-    MULTI,
+    CURSOR,
     GET_ITERATOR_CHUNK_SIZE,
+    MULTI,
     NO_RESULTS,
     SINGLE,
-    CURSOR,
 )
 from pymongo import InsertOne, UpdateOne
 
-from django_mongodb.query import MongoWhereNode, MongoOrdering, MongoSelect
+from django_mongodb.query import MongoOrdering, MongoSelect, MongoWhereNode
 
 
 class SQLCompiler(BaseSQLCompiler):

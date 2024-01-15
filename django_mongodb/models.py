@@ -1,6 +1,6 @@
 import bson
 from django.db import models
-from django.db.models.fields import AutoFieldMeta, AutoField
+from django.db.models.fields import AutoField, AutoFieldMeta
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
