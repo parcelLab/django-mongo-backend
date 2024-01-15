@@ -1,0 +1,33 @@
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Editor
+.idea/
+.vscode
+
+# vi
+*~
+
+# General
+log/
+*.log
+
+# Django
+/db.sqlite3
+/.mypy_cache/
+.env
+/public/
+__pycache__
+
+oidc.key
+/.ruff_cache/
+/copilot/
+/.coverage
+
+/media/mail_media/*
+
+/track/data
+
