@@ -56,7 +56,7 @@ class MongoExact(Node):
             rhs = models.ObjectIdField().to_python(rhs)
         return {lhs.column: {"$eq": rhs}}
 
-    def get_search_type(self, attname):
+    def get_search_types(self, attname):
         if attname in self.mongo_meta["search_fields"]:
             if "string" in self.mongo_meta["search_fields"][attname]:
                 return "text", "query"
@@ -64,7 +64,7 @@ class MongoExact(Node):
                 return "equals", "value"
 
     def get_mongo_search(self) -> dict:
-        query, value = self.get_search_type(self.lhs.target.attname)
+        query, value = self.get_search_types(self.lhs.target.attname)
         return {
             query: {
                 "path": self.lhs.target.column,
@@ -301,6 +301,7 @@ class MongoOrdering:
 
     def get_mongo_search_order(self):
         mongo_order = {}
+        meta = self.query.get_meta()
         fields = {field.name: field for field in self.query.model._meta.get_fields()}
         for field in self.order or []:
             if field.startswith("-"):
@@ -308,7 +309,7 @@ class MongoOrdering:
                 field = field[1:]
             else:
                 ordering = 1
-            field = "_id" if field == "pk" else field
+            field = meta.pk.attname if field == "pk" else field
             mongo_order.update({fields[field].column: ordering})
         return mongo_order
 
