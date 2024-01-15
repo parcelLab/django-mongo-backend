@@ -215,12 +215,10 @@ class MongoSelect:
     def __init__(self, _cols: list[tuple[Expression, tuple, str | None]], mongo_meta):
         self.mongo_meta = mongo_meta
         self.cols = []
-        models = set()
         for col in _cols:
             [column, _, alias] = col
             match column:
                 case Col():
-                    models.add(column.output_field.model)
                     self.cols.append(MongoColSelect(column, alias, mongo_meta))
                 case Value():
                     self.cols.append(MongoValueSelect(column, alias, mongo_meta))
