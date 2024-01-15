@@ -179,13 +179,7 @@ class MongoColSelect:
         self.alias = alias
 
     def get_mongo(self):
-        return {
-            "$project": {
-                (self.alias or self.col.target.attname): {
-                    "$ifNull": [f"${self.col.target.column}", "null"]
-                }
-            }
-        }
+        return {"$project": {(self.alias or self.col.target.attname): f"${self.col.target.column}"}}
 
 
 class MongoValueSelect:

@@ -146,7 +146,7 @@ class SQLCompiler(BaseSQLCompiler):
         _row_tuples = []
         fields = [s[0] for s in self.select[0 : self.col_count]]
         for row in rows:
-            _row_tuples.append(tuple(row[field.target.attname] for field in fields))
+            _row_tuples.append(tuple(row.get(field.target.attname) for field in fields))
 
         if converters:
             _row_tuples = self.apply_converters(_row_tuples, converters)
