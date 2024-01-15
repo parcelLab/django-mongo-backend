@@ -31,10 +31,16 @@ class DatabaseOperations(BaseDatabaseOperations):
         return value
 
     def adapt_timefield_value(self, value: datetime.time):
-        return datetime.datetime.combine(datetime.date(2000, 1, 1), value)
+        if isinstance(value, datetime.time):
+            return datetime.datetime.combine(datetime.date(2000, 1, 1), value)
+        else:
+            return value
 
     def adapt_datefield_value(self, value):
-        return datetime.datetime(value.year, value.month, value.day)
+        if isinstance(value, datetime.date):
+            return datetime.datetime(value.year, value.month, value.day)
+        else:
+            return value
 
     def convert_time_value(self, value, expression, connection):
         if isinstance(value, datetime.datetime):
