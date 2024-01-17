@@ -20,6 +20,10 @@ from django_mongodb.query import MongoOrdering, MongoSelect, MongoWhereNode
 
 
 class SQLCompiler(BaseSQLCompiler):
+    def __init__(self, query, connection, using, elide_empty=True):
+        super().__init__(query, connection, using, elide_empty)
+        self.extr = None
+
     def build_filter(self, filter_expr):
         return MongoWhereNode(filter_expr, self.mongo_meta).get_mongo_query()
 
@@ -28,7 +32,7 @@ class SQLCompiler(BaseSQLCompiler):
         extra_select, order_by, group_by = self.pre_sql_setup(
             with_col_aliases=with_col_aliases or bool(combinator),
         )
-        if combinator or extra_select or group_by or with_col_aliases or self.query.distinct:
+        if combinator or extra_select or group_by or with_col_aliases:
             raise NotImplementedError
 
         # Is a LIMIT/OFFSET clause needed?
@@ -39,20 +43,40 @@ class SQLCompiler(BaseSQLCompiler):
         pipeline = []
         mongo_where = MongoWhereNode(self.where, self.mongo_meta)
         build_search_pipeline = (
-            hasattr(self.query, "prefer_search") and self.query.prefer_search
-        ) or mongo_where.requires_search()
-        if self.where and build_search_pipeline:
+            (hasattr(self.query, "prefer_search") and self.query.prefer_search)
+            or mongo_where.requires_search()
+        ) and not self.query.distinct
+
+        has_attname_as_key = False
+        if mongo_where and build_search_pipeline:
             search = mongo_where.get_mongo_search()
-            order = MongoOrdering(self.query).get_mongo_search_order()
+            order = MongoOrdering(self.query).get_mongo_order()
             pipeline.append({"$search": search})
             if self.query.order_by:
                 search["sort"] = {**order}
-        elif self.where:
-            filter = self.build_filter(self.where)
-            pipeline.append({"$match": filter})
+        elif mongo_where:
+            pipeline.append({"$match": mongo_where.get_mongo_query(is_search=False)})
+
+        if self.query.distinct:
+            if len(self.select) > 1:
+                raise NotImplementedError("Distinct on more than one columns not implemented")
+            has_attname_as_key = True
+            pipeline.extend(
+                [
+                    {
+                        "$group": {
+                            **{
+                                "_id": {col.target.attname: f"${col.target.column}"}
+                                for col, _, alias in self.select
+                            },
+                        },
+                    },
+                    {"$replaceRoot": {"newRoot": "$_id"}},
+                ]
+            )
 
         if self.query.order_by and not build_search_pipeline:
-            order = MongoOrdering(self.query).get_mongo_order()
+            order = MongoOrdering(self.query).get_mongo_order(attname_as_key=has_attname_as_key)
             pipeline.append({"$sort": order})
 
         if with_limit_offset and self.query.low_mark:
@@ -61,7 +85,7 @@ class SQLCompiler(BaseSQLCompiler):
         if with_limit_offset and self.query.high_mark:
             pipeline.append({"$limit": self.query.high_mark})
 
-        if select_cols := self.select + extra_select:
+        if (select_cols := self.select + extra_select) and not has_attname_as_key:
             select_pipeline = MongoSelect(select_cols, self.mongo_meta).get_mongo()
             pipeline.extend(select_pipeline)
 

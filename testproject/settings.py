@@ -12,8 +12,6 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 
-from django.contrib.contenttypes.apps import ContentTypesConfig
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -28,7 +26,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-ContentTypesConfig.default_auto_field = "django_mongodb.models.ObjectIdAutoField"
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -78,17 +75,10 @@ WSGI_APPLICATION = "testproject.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django_mongodb",
-        "NAME": "django_mongodb",
-        "CLIENT": {
-            "host": os.environ.get("MONGODB_URL"),
-        },
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     },
-    # "_back": {
-    #     "ENGINE": "django.db.backends.sqlite3",
-    #     "NAME": BASE_DIR / "db.sqlite3",
-    # },
-    "django_mongodb": {
+    "mongodb": {
         "ENGINE": "django_mongodb",
         "NAME": "django_mongodb",
         "CLIENT": {
@@ -135,5 +125,5 @@ STATIC_URL = "static/"
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
-# DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-DEFAULT_AUTO_FIELD = "django_mongodb.models.ObjectIdAutoField"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# DEFAULT_AUTO_FIELD = "django_mongodb.models.ObjectIdAutoField"
