@@ -54,6 +54,8 @@ class SQLCompiler(BaseSQLCompiler):
             pipeline.append({"$search": search})
             if self.query.order_by:
                 search["sort"] = {**order}
+            if extra_match := mongo_where.get_mongo_query(is_search=True):
+                pipeline.append({"$match": extra_match})
         elif mongo_where:
             pipeline.append({"$match": mongo_where.get_mongo_query(is_search=False)})
 
@@ -83,7 +85,7 @@ class SQLCompiler(BaseSQLCompiler):
             pipeline.append({"$skip": self.query.low_mark})
 
         if with_limit_offset and self.query.high_mark:
-            pipeline.append({"$limit": self.query.high_mark})
+            pipeline.append({"$limit": self.query.high_mark - self.query.low_mark})
 
         if (select_cols := self.select + extra_select) and not has_attname_as_key:
             select_pipeline = MongoSelect(select_cols, self.mongo_meta).get_mongo()
