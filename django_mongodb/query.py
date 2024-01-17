@@ -102,7 +102,7 @@ class MongoSearchVectorExact(SearchNode):
         query = [expression.value for expression in lhs_expressions]
         # weight = lhs.weight
         # config = lhs.config
-        search_query = {"text": {"path": columns, "query": query}}
+        search_query = {"wildcard": {"path": columns, "query": query}}
         return search_query
 
 
@@ -194,6 +194,9 @@ class MongoWhereNode(Node):
                 self.children.append(MongoEqualityComparison(child, self.mongo_meta))
             else:
                 raise NotImplementedError(f"Node not implemented: {type(child)}")
+
+    def __bool__(self):
+        return len(self.children) > 0
 
     def requires_search(self) -> bool:
         return any(child.requires_search() for child in self.children)
@@ -296,10 +299,8 @@ class MongoOrdering:
         self.query = query
         self.order = query.order_by
 
-    def get_mongo_order(self):
-        return self.get_mongo_search_order()
-
-    def get_mongo_search_order(self):
+    def get_mongo_order(self, attname_as_key=False):
+        key = "attname" if attname_as_key else "column"
         mongo_order = {}
         meta = self.query.get_meta()
         fields = {field.name: field for field in self.query.model._meta.get_fields()}
@@ -310,7 +311,7 @@ class MongoOrdering:
             else:
                 ordering = 1
             field = meta.pk.attname if field == "pk" else field
-            mongo_order.update({fields[field].column: ordering})
+            mongo_order.update({getattr(fields[field], key): ordering})
         return mongo_order
 
 

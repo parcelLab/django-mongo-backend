@@ -98,7 +98,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             self.mongo_client.close()
             self.mongo_client = None
 
-        self.mongo_client = MongoClient(**connection_params, connect=False)
+        self.mongo_client = MongoClient(**connection_params)
         return self.mongo_client[name]
 
     def get_database_version(self):
@@ -112,10 +112,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             with self.wrap_database_errors:
                 self.mongo_client.close()
 
-    def rollback(self):
+    def _set_autocommit(self, autocommit):
         pass
 
-    def _set_autocommit(self, autocommit):
+    def rollback(self):
         pass
 
     def commit(self):

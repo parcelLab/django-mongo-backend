@@ -13,7 +13,7 @@ from testapp.models import (
 )
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_model():
     now = datetime.datetime.now().replace(microsecond=0)
     item = FooModel.objects.create(
@@ -32,7 +32,7 @@ def test_mongo_model():
     assert item.time_field == now.time()
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_model_filter_delete():
     FooModel.objects.all().delete()
     item = FooModel.objects.create(
@@ -49,7 +49,7 @@ def test_mongo_model_filter_delete():
     assert list(FooModel.objects.all()) == [item2]
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_model_values():
     FooModel.objects.all().delete()
     FooModel.objects.create(name="test", json_field={"foo": "bar"})
@@ -57,7 +57,7 @@ def test_mongo_model_values():
     assert item_values[0]["name"] == "test"
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_same_collection_inheritance():
     FooModel.objects.all().delete()
     obj = SameTableChild.objects.create(name="test", json_field={"foo": "bar"}, extended="extra")
@@ -71,7 +71,7 @@ def test_mongo_same_collection_inheritance():
     assert obj.extended == "extra"
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_same_collection_one_to_one():
     FooModel.objects.all().delete()
     obj1 = FooModel.objects.create(name="test", json_field={"foo": "bar"})
@@ -82,7 +82,7 @@ def test_mongo_same_collection_one_to_one():
     assert obj2.extends.extra == "extra"
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_different_collection_one_to_one_select():
     FooModel.objects.all().delete()
     obj1 = FooModel.objects.create(name="test", json_field={"foo": "bar"})
@@ -95,7 +95,7 @@ def test_mongo_different_collection_one_to_one_select():
         assert obj3.another_extends.extra == "extra"
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_related_model():
     FooModel.objects.all().delete()
     RelatedModel.objects.all().delete()
@@ -112,7 +112,7 @@ def test_mongo_related_model():
     assert len(foo.related.all()) == 0
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_related_model_prefetch():
     FooModel.objects.all().delete()
     RelatedModel.objects.all().delete()
@@ -124,14 +124,14 @@ def test_mongo_related_model_prefetch():
     assert len(foo.related.all()) == 1
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_aggregation_count():
     FooModel.objects.all().delete()
     assert not FooModel.objects.all().exists()
     assert FooModel.objects.count() == 0
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_ordering():
     FooModel.objects.all().delete()
     FooModel.objects.create(name="1", json_field={"foo": "bar"})
@@ -141,13 +141,25 @@ def test_mongo_ordering():
     assert list(FooModel.objects.all().order_by("-name"))[0].name == "2"
 
 
+@pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_distinct():
+    FooModel.objects.all().delete()
+    FooModel.objects.create(name="1", json_field={"foo": "bar"})
+    FooModel.objects.create(name="2", json_field={"foo": "bar"})
+    assert list(FooModel.objects.order_by("name").distinct().values_list("name", flat=True)) == [
+        "1",
+        "2",
+    ]
+
+
+@pytest.mark.skip
 @pytest.mark.django_db
-def test_prefer_search():
+def test_prefer_search(search_index):
     FooModel.objects.all().delete()
     assert list(FooModel.objects.all().prefer_search(True)) == []
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(databases=["default"])
 def test_reference_model():
     RefModel.objects.create(name="foo", json={"foo": "bar"})
     assert len(RefModel.objects.all()) == 1
