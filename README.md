@@ -60,4 +60,48 @@ class DatabaseRouter:
 ```
 
 Finally we are going to change the default primary key of the app using MongoDB (if that is the case, otherwise add
-ObjectIdAutoField to the models, where you need it)
+ObjectIdAutoField to the models, where you need it).
+
+```python
+# apps.py
+class TestappConfig(AppConfig):
+    default_auto_field = "django_mongodb.models.ObjectIdAutoField"
+    name = "mymongoapp"
+```
+
+### Defining Models
+A simple model, in an app, which has `ObjectIdAutoField` as `default_auto_field`
+
+```python
+class MyModel(models.Model):
+    json_field = JSONField()
+    name = models.CharField(max_length=100)
+    datetime_field = models.DateTimeField(auto_now_add=True)
+    time_field = models.TimeField(auto_now_add=True)
+    date_field = models.DateField(auto_now_add=True)
+```
+
+Single table inheritance
+
+```python
+class SameTableChild(MyModel):
+    my_model_ptr = models.OneToOneField(
+        MyModel,
+        on_delete=models.CASCADE,
+        parent_link=True,
+        related_name="same_table_child",
+        # pointer to the primary key of the parent model
+        db_column="_id",
+    )
+    extended = models.CharField(max_length=100)
+
+    class Meta:
+        # We are using the parent collection as db_table
+        db_table = "mymongoapp_mymodel"
+```
+
+Single table `OneToOne` relationships
+
+```python
+
+```
