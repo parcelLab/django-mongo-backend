@@ -103,4 +103,52 @@ class SameTableChild(MyModel):
 Single table `OneToOne` relationships
 
 ```python
+class SameTableOneToOne(models.Model):
+    dummy_model = models.OneToOneField(
+        MyModel,
+        primary_key=True,
+        on_delete=models.CASCADE,
+        related_name="extends",
+        db_column="_id",
+    )
+    extra = models.CharField(max_length=100)
+
+    class Meta:
+        # we are using the same collection to persist one-to-one relationships
+        db_table = "mymongoapp_mymodel"
+```
+
+### Querying
+
+```python
+# get all objects
+MyModel.objects.all()
+
+# get all objects, which have a name in list ["foo", "bar"]
+MyModel.objects.filter(name_in=["foo", "bar"])
+
+# select related with single table inheritance and one to one relationships
+MyModel.objects.select_related("same_table_child", "extends").all()
+
+# simple aggregations
+MyModel.objects.filter(name_in=["foo", "bar"]).count()
+```
+
+### Search
+Using the `prefer_search()` extension of MongoQueryset, we can use the `$search` operator of MongoDB to query,
+if we have search indexes configured on the model.
+
+```python
+MyModel.objects.prefer_search().filter(name="foo").all()
+```
+
+PostgreSQL search vectors map down to MongoDB search indexes, so we can use the same syntax as with PostgreSQL.
+
+```python
+class MyModel(models.Model):
+    name = models.CharField(max_length=100)
+```
+
+```python
+MyModel.objects.annotate(search=SearchVector('name')).filter(search=SearchQuery('foo')).all()
 ```
