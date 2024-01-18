@@ -24,8 +24,30 @@ class SQLCompiler(BaseSQLCompiler):
         super().__init__(query, connection, using, elide_empty)
         self.extr = None
 
-    def build_filter(self, filter_expr):
-        return MongoWhereNode(filter_expr, self.mongo_meta).get_mongo_query()
+    def build_mongo_filter(self, filter_expr):
+        referenced_tables = set()
+        for key, item in self.query.alias_refcount.items():
+            if item < 1:
+                continue
+            else:
+                referenced_tables.add(self.query.alias_map[key].table_name)
+
+        if len(referenced_tables) > 1:
+            raise NotImplementedError("Multi-table joins are not implemented yet.")
+
+        return MongoWhereNode(filter_expr, self.mongo_meta)
+
+    def get_distinct_clause(self):
+        return [
+            {
+                "$group": {
+                    "_id": {
+                        col.target.attname: f"${col.target.column}" for col, _, alias in self.select
+                    },
+                },
+            },
+            {"$replaceRoot": {"newRoot": "$_id"}},
+        ]
 
     def as_operation(self, with_limits=True, with_col_aliases=False):
         combinator = self.query.combinator
@@ -41,11 +63,11 @@ class SQLCompiler(BaseSQLCompiler):
             raise NotImplementedError
 
         pipeline = []
-        mongo_where = MongoWhereNode(self.where, self.mongo_meta)
+        mongo_where = self.build_mongo_filter(self.query.where)
         build_search_pipeline = (
             (hasattr(self.query, "prefer_search") and self.query.prefer_search)
             or mongo_where.requires_search()
-        ) and not self.query.distinct
+        ) and not self.query.distinct  # search not supported / efficient for distinct queries
 
         has_attname_as_key = False
         if mongo_where and build_search_pipeline:
@@ -55,28 +77,15 @@ class SQLCompiler(BaseSQLCompiler):
                 pipeline.append({"$search": search})
                 if self.query.order_by:
                     search["sort"] = {**order}
+            # we need to recheck fields, which did not have a search index
             if extra_match := mongo_where.get_mongo_query(is_search=True):
                 pipeline.append({"$match": extra_match})
         elif mongo_where:
             pipeline.append({"$match": mongo_where.get_mongo_query(is_search=False)})
 
         if self.query.distinct:
-            if len(self.select) > 1:
-                raise NotImplementedError("Distinct on more than one columns not implemented")
             has_attname_as_key = True
-            pipeline.extend(
-                [
-                    {
-                        "$group": {
-                            **{
-                                "_id": {col.target.attname: f"${col.target.column}"}
-                                for col, _, alias in self.select
-                            },
-                        },
-                    },
-                    {"$replaceRoot": {"newRoot": "$_id"}},
-                ]
-            )
+            pipeline.extend(self.get_distinct_clause())
 
         if self.query.order_by and not build_search_pipeline:
             order = MongoOrdering(self.query).get_mongo_order(attname_as_key=has_attname_as_key)
@@ -91,16 +100,6 @@ class SQLCompiler(BaseSQLCompiler):
         if (select_cols := self.select + extra_select) and not has_attname_as_key:
             select_pipeline = MongoSelect(select_cols, self.mongo_meta).get_mongo()
             pipeline.extend(select_pipeline)
-
-        referenced_tables = set()
-        for key, item in self.query.alias_refcount.items():
-            if item < 1:
-                continue
-            else:
-                referenced_tables.add(self.query.alias_map[key].table_name)
-
-        if len(referenced_tables) > 1:
-            raise NotImplementedError("Multi-table joins are not implemented yet.")
 
         return {
             "collection": self.query.model._meta.db_table,
@@ -216,7 +215,7 @@ def cursor_iter(cursor, sentinel, col_count, itersize):
 class SQLDeleteCompiler(SQLCompiler):
     def as_operation(self, with_limits=True, with_col_aliases=False):
         opts = self.query.get_meta()
-        filter = self.build_filter(self.query.where)
+        filter = self.build_mongo_filter(self.query.where).get_mongo_query()
         return {
             "collection": opts.db_table,
             "op": "delete_many",
@@ -312,7 +311,7 @@ class SQLInsertCompiler(SQLCompiler, BaseSQLInsertCompiler):
 class SQLUpdateCompiler(SQLCompiler):
     def as_operation(self):
         opts = self.query.get_meta()
-        filter = self.build_filter(self.query.where)
+        filter = self.build_mongo_filter(self.query.where).get_mongo_query()
         update = {
             field[0].column: field[0].get_db_prep_save(field[2], self.connection)
             for field in self.query.values

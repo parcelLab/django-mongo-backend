@@ -129,6 +129,9 @@ def test_mongo_aggregation_count():
     FooModel.objects.all().delete()
     assert not FooModel.objects.all().exists()
     assert FooModel.objects.count() == 0
+    FooModel.objects.create(name="test", json_field={"foo": "bar"})
+    assert FooModel.objects.filter(name="test").count() == 1
+    assert FooModel.objects.exclude(name="test").count() == 0
 
 
 @pytest.mark.django_db(databases=["mongodb"])
@@ -142,13 +145,30 @@ def test_mongo_ordering():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_prohibit_nested_queries():
+    # TODO: convert nested queries to aggregations
+    FooModel.objects.all().delete()
+    RelatedModel.objects.all().delete()
+
+    FooModel.objects.create(name="1", json_field={"foo": "bar"})
+    RelatedModel.objects.create(name="related", foo=FooModel.objects.get(name="1"))
+
+    with pytest.raises(NotImplementedError):
+        FooModel.objects.filter(related__name="related").delete()
+
+
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_distinct():
     FooModel.objects.all().delete()
-    FooModel.objects.create(name="1", json_field={"foo": "bar"})
-    FooModel.objects.create(name="2", json_field={"foo": "bar"})
+    FooModel.objects.create(name="1", json_field={"foo": "bar"}, date_field=datetime.date.today())
+    FooModel.objects.create(name="2", json_field={"foo": "bar"}, date_field=datetime.date.today())
     assert list(FooModel.objects.order_by("name").distinct().values_list("name", flat=True)) == [
         "1",
         "2",
+    ]
+    assert list(FooModel.objects.order_by("name").distinct().values_list("name", "date_field")) == [
+        ("1", datetime.date.today()),
+        ("2", datetime.date.today()),
     ]
 
 
