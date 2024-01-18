@@ -12,7 +12,7 @@ class MongoQuerySet(models.QuerySet):
 
     def prefer_search(self, prefer_search=True):
         obj = self._chain()
-        self._prefer_search = prefer_search
+        obj._prefer_search = prefer_search
         obj.query.prefer_search = prefer_search
         return obj
 

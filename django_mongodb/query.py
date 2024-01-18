@@ -48,6 +48,8 @@ class MongoExact(Node):
         self.mongo_meta = mongo_meta
 
     def get_mongo_query(self, is_search=False) -> dict:
+        if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
+            return {}
         lhs = self.lhs.target
         rhs = self.node.rhs
         if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
@@ -64,6 +66,8 @@ class MongoExact(Node):
                 return "equals", "value"
 
     def get_mongo_search(self) -> dict:
+        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
+            return {}
         query, value = self.get_search_types(self.lhs.target.attname)
         return {
             query: {
@@ -116,6 +120,8 @@ class MongoIn(Node):
         self.mongo_meta = mongo_meta
 
     def get_mongo_query(self, is_search=False) -> dict:
+        if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
+            return {}
         lhs = self.lhs.target
         rhs = self.rhs
         if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
@@ -125,6 +131,8 @@ class MongoIn(Node):
         return {lhs.column: {"$in": rhs}}
 
     def get_mongo_search(self) -> dict:
+        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
+            return {}
         return {
             "in": {
                 "path": self.lhs.target.column,
@@ -153,6 +161,8 @@ class MongoEqualityComparison(Node, ABC):
         self.mongo_meta = mongo_meta
 
     def get_mongo_query(self, is_search=False) -> dict:
+        if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
+            return {}
         lhs = self.lhs.target
         rhs = self.rhs
         if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
@@ -162,6 +172,8 @@ class MongoEqualityComparison(Node, ABC):
         return {lhs.column: {f"${self.operator}": rhs}}
 
     def get_mongo_search(self) -> dict:
+        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
+            return {}
         return {
             "range": {
                 "path": self.lhs.target.column,
@@ -218,7 +230,7 @@ class MongoWhereNode(Node):
             raise Exception(f"Unsupported connector: {self.connector}")
 
     def get_mongo_search(self) -> dict:
-        child_queries = [child.get_mongo_search() for child in self.children]
+        child_queries = list(filter(bool, [child.get_mongo_search() for child in self.children]))
         if len(child_queries) == 0:
             return {}
         elif self.connector == "AND":

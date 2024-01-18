@@ -51,9 +51,10 @@ class SQLCompiler(BaseSQLCompiler):
         if mongo_where and build_search_pipeline:
             search = mongo_where.get_mongo_search()
             order = MongoOrdering(self.query).get_mongo_order()
-            pipeline.append({"$search": search})
-            if self.query.order_by:
-                search["sort"] = {**order}
+            if search:
+                pipeline.append({"$search": search})
+                if self.query.order_by:
+                    search["sort"] = {**order}
             if extra_match := mongo_where.get_mongo_query(is_search=True):
                 pipeline.append({"$match": extra_match})
         elif mongo_where:

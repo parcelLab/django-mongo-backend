@@ -103,5 +103,4 @@ class SameTableChild(MyModel):
 Single table `OneToOne` relationships
 
 ```python
-
 ```
