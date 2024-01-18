@@ -15,17 +15,19 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
 ]
-version = "0.18"
+version = "0.19"
 description = ""
 authors = ["gersmann"]
 readme = "README.md"
+homepage = "https://github.com/gersmann/django-mongo-backend"
+repository = "https://github.com/gersmann/django-mongo-backend"
 
 [tool.poetry.dependencies]
 python = "^3.11"
 dictlib = "^1.1"
 pymongo = "^4.6"
 
-[tool.poetry.group.dev.dependencies]
+[tool.poetry.dev-dependencies]
 black = "^23.12.1"
 django = "^4.2"
 django-dotenv = "^1.4.2"

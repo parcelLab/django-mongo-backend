@@ -1,4 +1,4 @@
-## Django backend for MongoDB (PoC Stage)
+## Django backend for MongoDB
 
 Django backend for MongoDB.
 
