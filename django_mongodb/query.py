@@ -87,8 +87,13 @@ class SearchNode(Node):
     def requires_search(self) -> bool:
         return True
 
-    def get_mongo_query(self, **kwargs) -> dict:
-        raise RequiresSearchException("SearchVectorExact requires application via search query.")
+    def get_mongo_query(self, is_search=False) -> dict:
+        if not is_search:
+            raise RequiresSearchException(
+                "SearchVectorExact requires application via search query."
+            )
+        else:
+            return {}
 
 
 class MongoSearchVectorExact(SearchNode):
