@@ -18,8 +18,6 @@ from django.db.models.lookups import (
 from django.db.models.sql import Query
 from django.db.models.sql.where import NothingNode, WhereNode
 
-from django_mongodb import models
-
 
 class RequiresSearchException(Exception):
     pass
@@ -49,8 +47,8 @@ class MongoLookup(Node):
 
     def __init__(self, node: Lookup, mongo_meta):
         super().__init__(node, mongo_meta)
-        self.lhs = node.lhs
-        self.rhs = node.rhs
+        self.lhs = node.get_prep_lhs()
+        self.rhs = node.get_prep_lookup()
         if hasattr(self.node, "rhs") and isinstance(self.node.rhs, BaseExpression):
             raise NotImplementedError(f"Subquery Expression not implemented: {str(self.node.rhs)}")
 
@@ -70,8 +68,6 @@ class MongoLookup(Node):
         rhs = self.rhs
         if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
             return {}
-        if isinstance(lhs, models.ObjectIdField) and isinstance(self.rhs, str):
-            rhs = models.ObjectIdField().to_python(rhs)
         return {lhs.column: {self.filter_operator: rhs}}
 
     def get_mongo_search(self, compiler, connection) -> dict:

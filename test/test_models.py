@@ -37,6 +37,16 @@ def test_mongo_model():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
+def test_db_prep():
+    FooModel.objects.all().delete()
+    item = FooModel.objects.create(
+        name="test",
+        json_field={"foo": "bar"},
+    )
+    assert len(FooModel.objects.filter(id=str(item.id)).all()) == 1
+
+
+@pytest.mark.django_db(databases=["mongodb"])
 def test_manager_methods():
     FooModel.objects.all().delete()
     item1 = FooModel.objects.get_or_create(name="test", defaults={"json_field": {"foo": "bar"}})
