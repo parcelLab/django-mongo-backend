@@ -1,7 +1,10 @@
 import datetime
+import os
+import time
 
 import pytest
 from bson import ObjectId
+from django.contrib.postgres.search import SearchQuery, SearchVector
 
 from refapp.models import RefModel
 from testapp.models import (
@@ -173,13 +176,33 @@ def test_mongo_distinct():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
-def test_prefer_search():
-    FooModel.objects.all().delete()
+def test_prefer_search_qs(search_index):
     qs = FooModel.objects.all().prefer_search()
     assert qs._prefer_search is True
     qs = qs.filter(name="test")
     assert qs._prefer_search is True
-    assert list(qs) == []
+
+
+@pytest.mark.skipif(os.environ.get("CI") == "true", reason="CI does not have mongodb search")
+@pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_search_index(search_index):
+    FooModel.objects.create(name="test", json_field={"foo": "bar"})
+    FooModel.objects.create(name="test1", json_field={"foo": "bar"})
+    # search index needs to sync
+    time.sleep(1)
+    # regular search term
+    search_qs = FooModel.objects.annotate(search=SearchVector("name")).filter(
+        search=SearchQuery("test")
+    )
+    assert len(list(search_qs)) == 1
+    # wildcard search term
+    search_qs = FooModel.objects.annotate(search=SearchVector("name")).filter(
+        search=SearchQuery("test*")
+    )
+    assert len(list(search_qs)) == 2
+
+    prefer_search_qs = FooModel.objects.all().prefer_search().filter(name="test")
+    assert len(list(prefer_search_qs)) == 1
 
 
 @pytest.mark.django_db(databases=["default"])
