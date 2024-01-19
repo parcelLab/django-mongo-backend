@@ -2,13 +2,14 @@ import abc
 from abc import ABC
 from collections import OrderedDict
 
+from bson import ObjectId
 from django.contrib.postgres.search import SearchQuery, SearchVector, SearchVectorExact
 from django.db.models import Count, sql
 from django.db.models.expressions import BaseExpression, Col, Expression, Value
 from django.db.models.fields.related_lookups import RelatedIn
 from django.db.models.lookups import Exact, GreaterThanOrEqual, In, LessThanOrEqual
 from django.db.models.sql import Query
-from django.db.models.sql.where import WhereNode
+from django.db.models.sql.where import NothingNode, WhereNode
 
 from django_mongodb import models
 
@@ -187,6 +188,17 @@ class MongoEqualityComparison(Node, ABC):
         }
 
 
+class MongoNothingNode(Node):
+    def __init__(self, nothing: NothingNode, mongo_meta):
+        pass
+
+    def get_mongo_query(self, is_search=...) -> dict:
+        return {"_id": ObjectId("000000000000000000000000")}
+
+    def get_mongo_search(self) -> dict:
+        return {}
+
+
 class MongoWhereNode(Node):
     """MongoDB Query Node for WhereNode"""
 
@@ -197,7 +209,9 @@ class MongoWhereNode(Node):
         self.mongo_meta = mongo_meta
         self.negated = where.negated
         for child in self.node.children:
-            if isinstance(child, Exact):
+            if isinstance(child, NothingNode):
+                self.children.append(MongoNothingNode(child, self.mongo_meta))
+            elif isinstance(child, Exact):
                 self.children.append(MongoExact(child, self.mongo_meta))
             elif isinstance(child, SearchVectorExact):
                 self.children.append(MongoSearchVectorExact(child, self.mongo_meta))

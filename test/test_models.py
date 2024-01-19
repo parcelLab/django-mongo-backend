@@ -23,6 +23,7 @@ def test_mongo_model():
         name="test",
         json_field={"foo": "bar"},
     )
+    assert item.id is not None
     FooModel.objects.filter(name="test").update(
         datetime_field=now, date_field=now.date(), time_field=now.time()
     )
@@ -33,6 +34,21 @@ def test_mongo_model():
     assert item.datetime_field == now
     assert item.date_field == now.date()
     assert item.time_field == now.time()
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_manager_methods():
+    FooModel.objects.all().delete()
+    item1 = FooModel.objects.get_or_create(name="test", json_field={"foo": "bar"})
+    item2 = FooModel.objects.get_or_create(name="test", json_field={"foo": "bar"})
+    assert item1[0] is not None
+    assert item1[0].id == item2[0].id
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_emtpy():
+    FooModel.objects.all().delete()
+    assert len(list(FooModel.objects.none())) == 0
 
 
 @pytest.mark.django_db(databases=["mongodb"])
