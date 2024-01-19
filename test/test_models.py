@@ -39,8 +39,8 @@ def test_mongo_model():
 @pytest.mark.django_db(databases=["mongodb"])
 def test_manager_methods():
     FooModel.objects.all().delete()
-    item1 = FooModel.objects.get_or_create(name="test", json_field={"foo": "bar"})
-    item2 = FooModel.objects.get_or_create(name="test", json_field={"foo": "bar"})
+    item1 = FooModel.objects.get_or_create(name="test", defaults={"json_field": {"foo": "bar"}})
+    item2 = FooModel.objects.get_or_create(name="test", defaults={"json_field": {"foo": "bar"}})
     assert item1[0] is not None
     assert item1[0].id == item2[0].id
 

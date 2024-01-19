@@ -71,17 +71,19 @@ class SQLCompiler(BaseSQLCompiler):
 
         has_attname_as_key = False
         if mongo_where and build_search_pipeline:
-            search = mongo_where.get_mongo_search()
+            search = mongo_where.get_mongo_search(self, self.connection)
             order = MongoOrdering(self.query).get_mongo_order()
             if search:
                 pipeline.append({"$search": search})
                 if self.query.order_by:
                     search["sort"] = {**order}
             # we need to recheck fields, which did not have a search index
-            if extra_match := mongo_where.get_mongo_query(is_search=True):
+            if extra_match := mongo_where.get_mongo_query(self, self.connection, is_search=True):
                 pipeline.append({"$match": extra_match})
         elif mongo_where:
-            pipeline.append({"$match": mongo_where.get_mongo_query(is_search=False)})
+            pipeline.append(
+                {"$match": mongo_where.get_mongo_query(self, self.connection, is_search=False)}
+            )
 
         if self.query.distinct:
             has_attname_as_key = True
@@ -215,7 +217,7 @@ def cursor_iter(cursor, sentinel, col_count, itersize):
 class SQLDeleteCompiler(SQLCompiler):
     def as_operation(self, with_limits=True, with_col_aliases=False):
         opts = self.query.get_meta()
-        filter = self.build_mongo_filter(self.query.where).get_mongo_query()
+        filter = self.build_mongo_filter(self.query.where).get_mongo_query(self, self.connection)
         return {
             "collection": opts.db_table,
             "op": "delete_many",
@@ -311,7 +313,7 @@ class SQLInsertCompiler(SQLCompiler, BaseSQLInsertCompiler):
 class SQLUpdateCompiler(SQLCompiler):
     def as_operation(self):
         opts = self.query.get_meta()
-        filter = self.build_mongo_filter(self.query.where).get_mongo_query()
+        filter = self.build_mongo_filter(self.query.where).get_mongo_query(self, self.connection)
         update = {
             field[0].column: field[0].get_db_prep_save(field[2], self.connection)
             for field in self.query.values

@@ -1,13 +1,20 @@
 import abc
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections import OrderedDict
 
-from bson import ObjectId
 from django.contrib.postgres.search import SearchQuery, SearchVector, SearchVectorExact
-from django.db.models import Count, sql
+from django.db.models import Count
 from django.db.models.expressions import BaseExpression, Col, Expression, Value
-from django.db.models.fields.related_lookups import RelatedIn
-from django.db.models.lookups import Exact, GreaterThanOrEqual, In, LessThanOrEqual
+from django.db.models.fields.related_lookups import RelatedExact, RelatedIn
+from django.db.models.lookups import (
+    Exact,
+    GreaterThan,
+    GreaterThanOrEqual,
+    In,
+    LessThan,
+    LessThanOrEqual,
+    Lookup,
+)
 from django.db.models.sql import Query
 from django.db.models.sql.where import NothingNode, WhereNode
 
@@ -19,113 +26,44 @@ class RequiresSearchException(Exception):
 
 
 class Node(ABC):
-    """MongoDB Query Node"""
-
     def __init__(self, node: Expression, mongo_meta):
         self.node = node
         self.mongo_meta = mongo_meta
+
+    def requires_search(self) -> bool:
+        return False
+
+    @abc.abstractmethod
+    def get_mongo_query(self, compiler, connection, requires_search=...) -> dict:
+        ...
+
+    @abc.abstractmethod
+    def get_mongo_search(self, compiler, connection) -> dict:
+        ...
+
+
+class MongoLookup(Node):
+    """MongoDB Query Node"""
+
+    filter_operator: str
+
+    def __init__(self, node: Lookup, mongo_meta):
+        super().__init__(node, mongo_meta)
+        self.lhs = node.lhs
+        self.rhs = node.rhs
         if hasattr(self.node, "rhs") and isinstance(self.node.rhs, BaseExpression):
             raise NotImplementedError(f"Subquery Expression not implemented: {str(self.node.rhs)}")
 
     def requires_search(self) -> bool:
         return False
 
-    @abc.abstractmethod
-    def get_mongo_query(self, is_search=...) -> dict:
-        ...
-
-    @abc.abstractmethod
-    def get_mongo_search(self) -> dict:
-        ...
-
-
-class MongoExact(Node):
-    """MongoDB Query Node for Exact"""
-
-    def __init__(self, exact: Exact, mongo_meta):
-        super().__init__(exact, mongo_meta)
-        self.lhs = exact.lhs
-        self.rhs = exact.rhs
-        self.mongo_meta = mongo_meta
-
-    def get_mongo_query(self, is_search=False) -> dict:
+    def get_mongo_query(self, compiler, connection, is_search=False) -> dict:
         if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
             return {}
-        lhs = self.lhs.target
-        rhs = self.node.rhs
-        if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
-            return {}
-        if isinstance(lhs, models.ObjectIdField) and isinstance(self.rhs, str):
-            rhs = models.ObjectIdField().to_python(rhs)
-        return {lhs.column: {"$eq": rhs}}
-
-    def get_search_types(self, attname):
-        if attname in self.mongo_meta["search_fields"]:
-            if "string" in self.mongo_meta["search_fields"][attname]:
-                return "text", "query"
-            else:
-                return "equals", "value"
-
-    def get_mongo_search(self) -> dict:
-        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
-            return {}
-        query, value = self.get_search_types(self.lhs.target.attname)
-        return {
-            query: {
-                "path": self.lhs.target.column,
-                value: self.node.rhs,
-            }
-        }
-
-
-class SearchNode(Node):
-    """MongoDB Search Query Base Node"""
-
-    def __init__(self, node: Expression, mongo_meta):
-        self.node = node
-        self.mongo_meta = mongo_meta
-
-    def requires_search(self) -> bool:
-        return True
-
-    def get_mongo_query(self, is_search=False) -> dict:
-        if not is_search:
-            raise RequiresSearchException(
-                "SearchVectorExact requires application via search query."
-            )
         else:
-            return {}
+            return self._get_mongo_query(compiler, connection)
 
-
-class MongoSearchVectorExact(SearchNode):
-    """MongoDB Search Query Node for SearchVectorExact"""
-
-    def __init__(self, exact: SearchVectorExact, mongo_meta):
-        super().__init__(exact, mongo_meta)
-        self.lhs: SearchVector = exact.lhs
-        self.rhs: SearchQuery = exact.rhs
-
-    def get_mongo_search(self) -> dict:
-        rhs_expressions = self.lhs.get_source_expressions()
-        lhs_expressions = self.rhs.get_source_expressions()
-        columns = [expression.field.column for expression in rhs_expressions]
-        query = [expression.value for expression in lhs_expressions]
-        # weight = lhs.weight
-        # config = lhs.config
-        search_query = {"wildcard": {"path": columns, "query": query}}
-        return search_query
-
-
-class MongoIn(Node):
-    """MongoDB Query Node for RelatedIn"""
-
-    def __init__(self, related_in: RelatedIn, mongo_meta):
-        super().__init__(related_in, mongo_meta)
-        self.lhs = related_in.lhs
-        self.rhs = related_in.rhs
-        self.mongo_meta = mongo_meta
-
-    def get_mongo_query(self, is_search=False) -> dict:
+    def _get_mongo_query(self, compiler, connection, is_search=False) -> dict:
         if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
             return {}
         lhs = self.lhs.target
@@ -134,9 +72,49 @@ class MongoIn(Node):
             return {}
         if isinstance(lhs, models.ObjectIdField) and isinstance(self.rhs, str):
             rhs = models.ObjectIdField().to_python(rhs)
-        return {lhs.column: {"$in": rhs}}
+        return {lhs.column: {self.filter_operator: rhs}}
 
-    def get_mongo_search(self) -> dict:
+    def get_mongo_search(self, compiler, connection) -> dict:
+        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
+            return {}
+        else:
+            return self._get_mongo_search(compiler, connection)
+
+    @abc.abstractmethod
+    def _get_mongo_search(self, compiler, connection) -> dict:
+        ...
+
+
+class MongoExact(MongoLookup):
+    """MongoDB Query Node for Exact"""
+
+    filter_operator = "$eq"
+
+    def get_search_types(self, attname):
+        if attname in self.mongo_meta["search_fields"]:
+            if "string" in self.mongo_meta["search_fields"][attname]:
+                return "text", "query"
+            else:
+                return "equals", "value"
+
+    def _get_mongo_search(self, compiler, connection) -> dict:
+        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
+            return {}
+        query, value = self.get_search_types(self.lhs.target.attname)
+        return {
+            query: {
+                "path": self.lhs.target.column,
+                value: self.rhs,
+            }
+        }
+
+
+class MongoIn(MongoLookup):
+    """MongoDB Query Node for RelatedIn"""
+
+    filter_operator = "$in"
+
+    def _get_mongo_search(self, compiler, connection) -> dict:
         if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
             return {}
         return {
@@ -148,81 +126,115 @@ class MongoIn(Node):
 
 
 class MongoRelatedIn(MongoIn):
-    pass
+    filter_operator = "$in"
 
 
-class MongoEqualityComparison(Node, ABC):
+class MongoEqualityComparison(MongoLookup):
     """MongoDB Query Node for LessThanOrEqual"""
 
     operator: str
 
-    def __init__(self, operator: LessThanOrEqual | GreaterThanOrEqual, mongo_meta):
+    def __init__(
+        self, operator: LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual, mongo_meta
+    ):
         super().__init__(operator, mongo_meta)
-        self.lhs = operator.lhs
-        self.rhs = operator.rhs
         self.operator = {
-            LessThanOrEqual: "lte",
-            GreaterThanOrEqual: "gte",
+            LessThan: "$lt",
+            LessThanOrEqual: "$lte",
+            GreaterThan: "$gt",
+            GreaterThanOrEqual: "$gte",
         }[type(operator)]
-        self.mongo_meta = mongo_meta
 
-    def get_mongo_query(self, is_search=False) -> dict:
-        if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
-            return {}
-        lhs = self.lhs.target
-        rhs = self.rhs
-        if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
-            return {}
-        if isinstance(lhs, models.ObjectIdField) and isinstance(self.rhs, str):
-            rhs = models.ObjectIdField().to_python(rhs)
-        return {lhs.column: {f"${self.operator}": rhs}}
-
-    def get_mongo_search(self) -> dict:
-        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
-            return {}
+    def _get_mongo_search(self, compiler, connection) -> dict:
         return {
             "range": {
                 "path": self.lhs.target.column,
-                self.operator: self.rhs,
+                self.operator[1:-1]: self.rhs,
             }
         }
 
 
+class SearchNode(Node):
+    """MongoDB Search Query Base Node"""
+
+    def __init__(self, node: Expression, mongo_meta):
+        super().__init__(node, mongo_meta)
+
+    def requires_search(self) -> bool:
+        return True
+
+    def get_mongo_query(self, compiler, connection, is_search=False) -> dict:
+        if not is_search:
+            raise RequiresSearchException("SearchNode requires application in search pipeline.")
+        else:
+            return {}
+
+    def get_mongo_search(self, compiler, connection) -> dict:
+        return self._get_mongo_search(compiler, connection)
+
+    @abstractmethod
+    def _get_mongo_search(self, compiler, connection) -> dict:
+        ...
+
+
+class MongoSearchLookup(SearchNode):
+    """MongoDB Search Query Node for SearchVectorExact"""
+
+    def __init__(self, exact: Lookup, mongo_meta):
+        super().__init__(exact, mongo_meta)
+        self.lhs: SearchVector = exact.lhs
+        self.rhs: SearchQuery = exact.rhs
+
+
+class MongoSearchVectorExact(MongoSearchLookup):
+    """Maps search vector to basic MongoDB wildcard query"""
+
+    def _get_mongo_search(self, compiler, connection) -> dict:
+        rhs_expressions = self.lhs.get_source_expressions()
+        lhs_expressions = self.rhs.get_source_expressions()
+        columns = [expression.field.column for expression in rhs_expressions]
+        query = [expression.value for expression in lhs_expressions]
+        # weight = lhs.weight
+        # config = lhs.config
+        search_query = {"wildcard": {"path": columns, "query": query}}
+        return search_query
+
+
 class MongoNothingNode(Node):
-    def __init__(self, nothing: NothingNode, mongo_meta):
-        pass
+    def get_mongo_query(self, compiler, connection, is_search=...) -> dict:
+        return {"$expr": {"$eq": [True, False]}}
 
-    def get_mongo_query(self, is_search=...) -> dict:
-        return {"_id": ObjectId("000000000000000000000000")}
-
-    def get_mongo_search(self) -> dict:
+    def get_mongo_search(self, compiler, connection) -> dict:
         return {}
 
 
-class MongoWhereNode(Node):
+class MongoWhereNode:
     """MongoDB Query Node for WhereNode"""
+
+    node_map = {
+        NothingNode: MongoNothingNode,
+        Exact: MongoExact,
+        RelatedIn: MongoRelatedIn,
+        RelatedExact: MongoExact,
+        In: MongoIn,
+        LessThan: MongoEqualityComparison,
+        LessThanOrEqual: MongoEqualityComparison,
+        GreaterThan: MongoEqualityComparison,
+        GreaterThanOrEqual: MongoEqualityComparison,
+        SearchVectorExact: MongoSearchVectorExact,
+    }
 
     def __init__(self, where: WhereNode, mongo_meta):
         self.node = where
         self.connector = where.connector
-        self.children: list[Node] = []
+        self.children: list[MongoWhereNode | Node] = []
         self.mongo_meta = mongo_meta
         self.negated = where.negated
         for child in self.node.children:
-            if isinstance(child, NothingNode):
-                self.children.append(MongoNothingNode(child, self.mongo_meta))
-            elif isinstance(child, Exact):
-                self.children.append(MongoExact(child, self.mongo_meta))
-            elif isinstance(child, SearchVectorExact):
-                self.children.append(MongoSearchVectorExact(child, self.mongo_meta))
-            elif isinstance(child, RelatedIn):
-                self.children.append(MongoRelatedIn(child, self.mongo_meta))
-            elif isinstance(child, In):
-                self.children.append(MongoIn(child, self.mongo_meta))
-            elif isinstance(child, WhereNode):
+            if isinstance(child, WhereNode):
                 self.children.append(MongoWhereNode(child, self.mongo_meta))
-            elif isinstance(child, (LessThanOrEqual, GreaterThanOrEqual)):
-                self.children.append(MongoEqualityComparison(child, self.mongo_meta))
+            elif child.__class__ in self.node_map:
+                self.children.append(self.node_map[child.__class__](child, self.mongo_meta))
             else:
                 raise NotImplementedError(f"Node not implemented: {type(child)}")
 
@@ -232,11 +244,14 @@ class MongoWhereNode(Node):
     def requires_search(self) -> bool:
         return any(child.requires_search() for child in self.children)
 
-    def get_mongo_query(self, is_search=False) -> dict:
+    def get_mongo_query(self, compiler, connection, is_search=False) -> dict:
         child_queries = list(
             filter(
                 bool,
-                [child.get_mongo_query(is_search=is_search) for child in self.children],
+                [
+                    child.get_mongo_query(compiler, connection, is_search=is_search)
+                    for child in self.children
+                ],
             )
         )
         if len(child_queries) == 0:
@@ -248,8 +263,10 @@ class MongoWhereNode(Node):
         else:
             raise Exception(f"Unsupported connector: {self.connector}")
 
-    def get_mongo_search(self) -> dict:
-        child_queries = list(filter(bool, [child.get_mongo_search() for child in self.children]))
+    def get_mongo_search(self, compiler, connection) -> dict:
+        child_queries = list(
+            filter(bool, [child.get_mongo_search(compiler, connection) for child in self.children])
+        )
         if len(child_queries) == 0:
             return {}
         elif self.connector == "AND":
@@ -281,7 +298,7 @@ class MongoValueSelect:
 
 
 class MongoCountSelect:
-    def __init__(self, col: Value, alias: str | None, mongo_meta):
+    def __init__(self, col: Count, alias: str | None, mongo_meta):
         self.col = col
         self.mongo_meta = mongo_meta
         self.alias = alias
@@ -344,39 +361,3 @@ class MongoOrdering:
             field = meta.pk.attname if field == "pk" else field
             mongo_order.update({getattr(fields[field], key): ordering})
         return mongo_order
-
-
-class MongoQuery(sql.Query):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.prefer_search = False
-
-    def clone(self, *args):
-        obj = super().clone()
-        obj.prefer_search = self.prefer_search
-        return obj
-
-
-class MongoCompiler:
-    """MongoDB Query Compiler based on Django Query"""
-
-    def get_mongo_query(self):
-        return self.where.get_mongo_query()
-
-    def _get_search_pipeline(self) -> tuple[list[dict], dict]:
-        pipeline, project_meta = [], {}
-        pipeline.append({"$search": self.where.get_mongo_search()})
-        if match := self.where.get_mongo_query(is_search=True):
-            pipeline.append({"$match": match})
-        project_meta.update({"meta": "$$SEARCH_META"})
-        return pipeline, project_meta
-
-    def get_count(self):
-        pipeline = []
-        is_search = self.where.requires_search()
-        if self.require_search or is_search:
-            pipeline.append({"$searchMeta": self.where.get_mongo_search()})
-        else:
-            pipeline.append({"$match": self.where.get_mongo_query()})
-            pipeline.append({"$count": "count"})
-        return pipeline
