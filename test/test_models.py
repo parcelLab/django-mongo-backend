@@ -176,7 +176,7 @@ def test_mongo_distinct():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
-def test_prefer_search_qs(search_index):
+def test_prefer_search_qs():
     qs = FooModel.objects.all().prefer_search()
     assert qs._prefer_search is True
     qs = qs.filter(name="test")
