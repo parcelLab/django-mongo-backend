@@ -45,5 +45,6 @@ jobs:
       - name: Run tests
         env:
           MONGODB_URL: mongodb://localhost:27017
+          CI: true
         run: |
           poetry run pytest
