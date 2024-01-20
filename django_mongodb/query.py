@@ -128,13 +128,13 @@ class MongoRelatedIn(MongoIn):
 class MongoEqualityComparison(MongoLookup):
     """MongoDB Query Node for LessThanOrEqual"""
 
-    operator: str
+    filter_operator: str
 
     def __init__(
         self, operator: LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual, mongo_meta
     ):
         super().__init__(operator, mongo_meta)
-        self.operator = {
+        self.filter_operator = {
             LessThan: "$lt",
             LessThanOrEqual: "$lte",
             GreaterThan: "$gt",

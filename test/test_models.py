@@ -1,10 +1,12 @@
 import datetime
 import os
 import time
+from datetime import timedelta
 
 import pytest
 from bson import ObjectId
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.utils.timezone import now
 
 from refapp.models import RefModel
 from testapp.models import (
@@ -59,6 +61,17 @@ def test_manager_methods():
 def test_mongo_emtpy():
     FooModel.objects.all().delete()
     assert len(list(FooModel.objects.none())) == 0
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_lookup():
+    FooModel.objects.all().delete()
+
+    FooModel.objects.create(name="test", json_field={"foo": "bar"})
+    FooModel.objects.create(name="test2", json_field={"foo": "bar"})
+
+    assert len(list(FooModel.objects.filter(datetime_field__gt=now() - timedelta(hours=1)))) == 2
+    assert len(list(FooModel.objects.filter(name="test"))) == 1
 
 
 @pytest.mark.django_db(databases=["mongodb"])
