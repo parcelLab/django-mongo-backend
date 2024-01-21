@@ -145,7 +145,7 @@ class MongoEqualityComparison(MongoLookup):
         return {
             "range": {
                 "path": self.lhs.target.column,
-                self.operator[1:-1]: self.rhs,
+                self.filter_operator[1:-1]: self.rhs,
             }
         }
 
