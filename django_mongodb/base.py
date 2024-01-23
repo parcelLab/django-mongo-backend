@@ -71,8 +71,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "iendswith": "LIKE UPPER(%s)",
     }
 
-    connection: MongoClient = None
-
     SchemaEditorClass = DatabaseSchemaEditor
     # Classes instantiated in __init__().
     client_class = DatabaseClient

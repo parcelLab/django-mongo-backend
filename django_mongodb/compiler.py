@@ -7,6 +7,9 @@ from django.db.models.sql.compiler import (
 from django.db.models.sql.compiler import (
     SQLInsertCompiler as BaseSQLInsertCompiler,
 )
+from django.db.models.sql.compiler import (
+    cursor_iter,
+)
 from django.db.models.sql.constants import (
     CURSOR,
     GET_ITERATOR_CHUNK_SIZE,
@@ -186,7 +189,6 @@ class SQLCompiler(BaseSQLCompiler):
         fields = [s[0] for s in self.select[0 : self.col_count]]
         converters = self.get_converters(fields)
         rows = chain.from_iterable(results)
-        # Temporary mapping of dict to tuple, until we move this to 'project'
         _row_tuples = []
         cols = self.select[0 : self.col_count]
         for row in rows:
@@ -200,18 +202,6 @@ class SQLCompiler(BaseSQLCompiler):
                 _row_tuples = map(tuple, _row_tuples)
         for row in _row_tuples:
             yield row
-
-
-def cursor_iter(cursor, sentinel, col_count, itersize):
-    """
-    Yield blocks of rows from a cursor and ensure the cursor is closed when
-    done.
-    """
-    try:
-        for rows in iter((lambda: cursor.fetchmany(itersize)), sentinel):
-            yield rows if col_count is None else [r[:col_count] for r in rows]
-    finally:
-        cursor.close()
 
 
 class SQLDeleteCompiler(SQLCompiler):
@@ -229,8 +219,6 @@ class SQLInsertCompiler(SQLCompiler, BaseSQLInsertCompiler):
     compiler = "SQLInsertCompiler"
 
     def as_operation(self):
-        # We don't need quote_name_unless_alias() here, since these are all
-        # going to be column names (so we can avoid the extra overhead).
         opts = self.query.get_meta()
         fields = self.query.fields or [opts.pk]
 
