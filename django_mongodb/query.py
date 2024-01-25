@@ -73,6 +73,8 @@ class MongoLookup(Node):
     def get_mongo_search(self, compiler, connection) -> dict:
         if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
             return {}
+        if not self.rhs:
+            return {}
         else:
             return self._get_mongo_search(compiler, connection)
 
