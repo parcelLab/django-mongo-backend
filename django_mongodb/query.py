@@ -194,7 +194,33 @@ class MongoSearchVectorExact(MongoSearchLookup):
         query = [expression.value for expression in lhs_expressions]
         # weight = lhs.weight
         # config = lhs.config
-        search_query = {"wildcard": {"path": columns, "query": query}}
+        auto_complete_columns = [
+            key
+            for key, value in self.mongo_meta["search_fields"].items()
+            if "autocomplete" in value
+        ]
+        query_columns = [
+            key
+            for key, value in self.mongo_meta["search_fields"].items()
+            if "string" in value and key not in auto_complete_columns
+        ]
+        search_query = dict()
+        if auto_complete_columns and query_columns:
+            search_query = {
+                "compound": {
+                    "should": [
+                        {"wildcard": {"path": columns, "query": query}},
+                        *[
+                            {"autocomplete": {"path": column, "query": query}}
+                            for column in auto_complete_columns
+                        ],
+                    ]
+                }
+            }
+        elif auto_complete_columns:
+            search_query = {"autocomplete": {"path": auto_complete_columns, "query": query}}
+        elif query_columns:
+            search_query = {"wildcard": {"path": columns, "query": query}}
         return search_query
 
 
