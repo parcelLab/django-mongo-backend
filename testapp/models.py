@@ -13,6 +13,9 @@ class FooModel(models.Model):
     time_field = models.TimeField(auto_now_add=True)
     date_field = models.DateField(auto_now_add=True)
 
+    class MongoMeta:
+        search_fields = {"name": ["string"]}
+
 
 class SameTableChild(FooModel):
     dummy_model_ptr = models.OneToOneField(

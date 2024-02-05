@@ -8,6 +8,8 @@ from bson import ObjectId
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.utils.timezone import now
 
+from django_mongodb.expressions import RawMongoDBQuery
+from django_mongodb.query import RequiresSearchIndex
 from refapp.models import RefModel
 from testapp.models import (
     DifferentTableOneToOne,
@@ -225,6 +227,7 @@ def test_prefer_search_qs():
 @pytest.mark.skipif(os.environ.get("CI") == "true", reason="CI does not have mongodb search")
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_search_index(search_index):
+    FooModel.objects.all().delete()
     FooModel.objects.create(name="test", json_field={"foo": "bar"})
     FooModel.objects.create(name="test1", json_field={"foo": "bar"})
     # search index needs to sync
@@ -242,6 +245,22 @@ def test_mongo_search_index(search_index):
 
     prefer_search_qs = FooModel.objects.all().prefer_search().filter(name="test")
     assert len(list(prefer_search_qs)) == 1
+
+    with pytest.raises(RequiresSearchIndex):
+        search_qs = FooModel.objects.annotate(search=SearchVector("datetime_field")).filter(
+            search=SearchQuery("test")
+        )
+        assert len(list(search_qs)) == 0
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_raw_query():
+    FooModel.objects.all().delete()
+    FooModel.objects.create(name="1", json_field={"foo": "bar"}, date_field=datetime.date.today())
+    FooModel.objects.create(name="2", json_field={"foo": "bar"}, date_field=datetime.date.today())
+
+    FooModel.objects.filter(RawMongoDBQuery({"name": "1"})).delete()
+    assert len(FooModel.objects.all()) == 1
 
 
 @pytest.mark.django_db(databases=["default"])

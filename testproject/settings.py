@@ -85,9 +85,7 @@ DATABASES = {
     "mongodb": {
         "ENGINE": "django_mongodb",
         "NAME": "django_mongodb",
-        "CLIENT": {
-            "host": os.environ.get("MONGODB_URL"),
-        },
+        "CLIENT": {"host": os.environ.get("MONGODB_URL"), "connect": False},
     },
 }
 DATABASE_ROUTERS = ["testproject.router.DatabaseRouter"]

@@ -133,7 +133,7 @@ class SQLCompiler(BaseSQLCompiler):
         # Join handling, currently only pseudo-joins on same collection
         # for same collection inheritance
         if self.query.extra_tables:
-            raise NotImplementedError("Can't do subqueries with multiple tables yet.")
+            raise NotImplementedError("Can't do sub-queries with multiple tables yet.")
 
         cursor = self.connection.cursor()
         try:

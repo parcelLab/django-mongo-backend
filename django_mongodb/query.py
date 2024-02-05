@@ -18,8 +18,14 @@ from django.db.models.lookups import (
 from django.db.models.sql import Query
 from django.db.models.sql.where import NothingNode, WhereNode
 
+from django_mongodb.expressions import RawMongoDBQuery
+
 
 class RequiresSearchException(Exception):
+    pass
+
+
+class RequiresSearchIndex(Exception):
     pass
 
 
@@ -40,6 +46,18 @@ class Node(ABC):
         ...
 
 
+class RawMongoQueryExpression(Node):
+    def __init__(self, node: RawMongoDBQuery, mongo_meta):
+        super().__init__(node, mongo_meta)
+        self.node = node
+
+    def get_mongo_query(self, compiler, connection, is_search=False) -> dict:
+        return self.node.query
+
+    def get_mongo_search(self, compiler, connection) -> dict:
+        return {}
+
+
 class MongoLookup(Node):
     """MongoDB Query Node"""
 
@@ -51,9 +69,6 @@ class MongoLookup(Node):
         self.rhs = node.get_prep_lookup()
         if hasattr(self.node, "rhs") and isinstance(self.node.rhs, BaseExpression):
             raise NotImplementedError(f"Subquery Expression not implemented: {str(self.node.rhs)}")
-
-    def requires_search(self) -> bool:
-        return False
 
     def get_mongo_query(self, compiler, connection, is_search=False) -> dict:
         if self.lhs.target.attname in self.mongo_meta["search_fields"] and is_search:
@@ -190,26 +205,33 @@ class MongoSearchVectorExact(MongoSearchLookup):
     def _get_mongo_search(self, compiler, connection) -> dict:
         rhs_expressions = self.lhs.get_source_expressions()
         lhs_expressions = self.rhs.get_source_expressions()
-        columns = [expression.field.column for expression in rhs_expressions]
+        columns = set([expression.field.column for expression in rhs_expressions])
         query = [expression.value for expression in lhs_expressions]
         # weight = lhs.weight
         # config = lhs.config
         auto_complete_columns = [
             key
             for key, value in self.mongo_meta["search_fields"].items()
-            if "autocomplete" in value
+            if "autocomplete" in value and key in columns
         ]
+        columns.difference_update(set(auto_complete_columns))
         query_columns = [
             key
             for key, value in self.mongo_meta["search_fields"].items()
-            if "string" in value and key not in auto_complete_columns
+            if "string" in value and key not in auto_complete_columns and key in columns
         ]
+        columns.difference_update(set(query_columns))
+        if len(columns) > 0:
+            raise RequiresSearchIndex(
+                f"SearchVectorExact requires search fields to be defined for all columns: {columns}"
+            )
+
         search_query = dict()
         if auto_complete_columns and query_columns:
             search_query = {
                 "compound": {
                     "should": [
-                        {"wildcard": {"path": columns, "query": query}},
+                        {"wildcard": {"path": query_columns, "query": query}},
                         *[
                             {"autocomplete": {"path": column, "query": query}}
                             for column in auto_complete_columns
@@ -220,7 +242,7 @@ class MongoSearchVectorExact(MongoSearchLookup):
         elif auto_complete_columns:
             search_query = {"autocomplete": {"path": auto_complete_columns, "query": query}}
         elif query_columns:
-            search_query = {"wildcard": {"path": columns, "query": query}}
+            search_query = {"wildcard": {"path": query_columns, "query": query}}
         return search_query
 
 
@@ -246,6 +268,7 @@ class MongoWhereNode:
         GreaterThan: MongoEqualityComparison,
         GreaterThanOrEqual: MongoEqualityComparison,
         SearchVectorExact: MongoSearchVectorExact,
+        RawMongoDBQuery: RawMongoQueryExpression,
     }
 
     def __init__(self, where: WhereNode, mongo_meta):
@@ -257,6 +280,8 @@ class MongoWhereNode:
         for child in self.node.children:
             if isinstance(child, WhereNode):
                 self.children.append(MongoWhereNode(child, self.mongo_meta))
+            elif isinstance(child, Exact) and isinstance(child.lhs, RawMongoDBQuery):
+                self.children.append(RawMongoQueryExpression(child.lhs, self.mongo_meta))
             elif child.__class__ in self.node_map:
                 self.children.append(self.node_map[child.__class__](child, self.mongo_meta))
             else:
