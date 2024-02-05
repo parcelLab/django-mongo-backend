@@ -1,5 +1,6 @@
 import os
 
+from pymongo import MongoClient
 from pymongo.cursor import Cursor as MongoCursor
 from pymongo.results import (
     DeleteResult,
@@ -14,7 +15,7 @@ DEBUG = os.environ.get("DEBUG", False)
 
 
 class Cursor:
-    def __init__(self, mongo_client, connection):
+    def __init__(self, mongo_client: MongoClient, connection):
         self.mongo_client = mongo_client
         self.connection = connection
         self.result: MongoCursor | InsertManyResult | DeleteResult | None = None
@@ -27,6 +28,10 @@ class Cursor:
         if self.result is not None and hasattr(self.result, "close"):
             self.result.close()
         self.result = None
+
+    @property
+    def collections(self):
+        return self.connection
 
     def __getattr__(self, name):
         try:

@@ -152,3 +152,11 @@ class MyModel(models.Model):
 ```python
 MyModel.objects.annotate(search=SearchVector('name')).filter(search=SearchQuery('foo')).all()
 ```
+
+### Raw Queries
+
+```python
+with connections["mongodb"].cursor() as cursor:
+    doc = cursor.collections["my_collection"].find_one()
+    assert isinstance(doc["_id"], ObjectId)
+```
