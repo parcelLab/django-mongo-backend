@@ -205,26 +205,26 @@ class MongoSearchVectorExact(MongoSearchLookup):
     def _get_mongo_search(self, compiler, connection) -> dict:
         rhs_expressions = self.lhs.get_source_expressions()
         lhs_expressions = self.rhs.get_source_expressions()
-        columns = set([expression.field.column for expression in rhs_expressions])
+        attname_to_column = {
+            expression.field.attname: expression.field.column for expression in rhs_expressions
+        }
         query = [expression.value for expression in lhs_expressions]
+        if set(attname_to_column.keys()) - set(self.mongo_meta["search_fields"].keys()):
+            raise RequiresSearchIndex(
+                "SearchVectorExact requires a search index for the fields used in the search."
+            )
         # weight = lhs.weight
         # config = lhs.config
         auto_complete_columns = [
-            key
+            attname_to_column[key]
             for key, value in self.mongo_meta["search_fields"].items()
-            if "autocomplete" in value and key in columns
+            if "autocomplete" in value and key in attname_to_column
         ]
-        columns.difference_update(set(auto_complete_columns))
         query_columns = [
-            key
+            attname_to_column[key]
             for key, value in self.mongo_meta["search_fields"].items()
-            if "string" in value and key not in auto_complete_columns and key in columns
+            if "string" in value and key not in auto_complete_columns and key in attname_to_column
         ]
-        columns.difference_update(set(query_columns))
-        if len(columns) > 0:
-            raise RequiresSearchIndex(
-                f"SearchVectorExact requires search fields to be defined for all columns: {columns}"
-            )
 
         search_query = dict()
         if auto_complete_columns and query_columns:

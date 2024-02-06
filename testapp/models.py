@@ -9,12 +9,13 @@ class FooModel(models.Model):
 
     json_field = JSONField()
     name = models.CharField(max_length=100)
+    name2 = models.CharField(max_length=100, null=True, db_column="name_2")
     datetime_field = models.DateTimeField(auto_now_add=True)
     time_field = models.TimeField(auto_now_add=True)
     date_field = models.DateField(auto_now_add=True)
 
     class MongoMeta:
-        search_fields = {"name": ["string"]}
+        search_fields = {"name": ["string"], "name2": ["string"]}
 
 
 class SameTableChild(FooModel):

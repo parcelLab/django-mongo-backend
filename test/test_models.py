@@ -238,7 +238,7 @@ def test_mongo_search_index(search_index):
     )
     assert len(list(search_qs)) == 1
     # wildcard search term
-    search_qs = FooModel.objects.annotate(search=SearchVector("name")).filter(
+    search_qs = FooModel.objects.annotate(search=SearchVector("name", "name2")).filter(
         search=SearchQuery("test*")
     )
     assert len(list(search_qs)) == 2

@@ -24,7 +24,14 @@ def search_index():
                             "searchAnalyzer": "lucene.keyword",
                             "store": False,
                             "type": "string",
-                        }
+                        },
+                        "name_2": {
+                            "analyzer": "lucene.keyword",
+                            "norms": "omit",
+                            "searchAnalyzer": "lucene.keyword",
+                            "store": False,
+                            "type": "string",
+                        },
                     },
                 },
             },
