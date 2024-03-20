@@ -28,7 +28,7 @@ dictlib = "^1.1"
 pymongo = "^4.6"
 
 [tool.poetry.dev-dependencies]
-black = "^23.12.1"
+black = "^24.3.0"
 django = "^4.2"
 python-dotenv = "^1.0.0"
 django-jsonform = "^2.21.3"
