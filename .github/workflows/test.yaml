@@ -35,7 +35,7 @@ jobs:
       - name: Run linters
         run: |
           poetry run ruff .
-          poetry run black --check .
+          poetry run ruff format --check .
 
       - name: Start MongoDB
         uses: supercharge/mongodb-github-action@1.10.0
