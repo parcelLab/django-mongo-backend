@@ -1,0 +1,73 @@
+[tool.poetry]
+name = "django-mongo-backend"
+packages = [
+    { include = "django_mongodb" },
+]
+keywords = ["django", "mongodb", "backend"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 4.0",
+    "Framework :: Django :: 4.1",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+]
+version = "0.26"
+description = ""
+authors = ["gersmann"]
+readme = "README.md"
+homepage = "https://github.com/gersmann/django-mongo-backend"
+repository = "https://github.com/gersmann/django-mongo-backend"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+dictlib = "^1.1"
+pymongo = "^4.6"
+
+[tool.poetry.dev-dependencies]
+django = "^5.0"
+python-dotenv = "^1.0"
+django-jsonform = "^2.22"
+pytest = "^8.1"
+pytest-django = "^4.8"
+ruff = "^0.3.5"
+pre-commit = "^3.7"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+DJANGO_SETTINGS_MODULE = "testproject.settings"
+testpaths = ["test"]
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+
+[tool.ruff]
+line-length = 100
+target-version = 'py311'
+exclude = [
+	"migrations"
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+	"E501", # line length handled by format
+	"C408", # dict vs dict literal
+]
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
