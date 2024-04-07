@@ -52,7 +52,7 @@ class SQLCompiler(BaseSQLCompiler):
             {"$replaceRoot": {"newRoot": "$_id"}},
         ]
 
-    def as_operation(self, with_limits=True, with_col_aliases=False):
+    def as_operation(self, with_limits=True, with_col_aliases=False):  # noqa: C901
         combinator = self.query.combinator
         extra_select, order_by, group_by = self.pre_sql_setup(
             with_col_aliases=with_col_aliases or bool(combinator),
@@ -145,7 +145,7 @@ class SQLCompiler(BaseSQLCompiler):
         if result_type == CURSOR:
             return cursor
         if result_type == SINGLE:
-            cols = [col for col in self.select[0 : self.col_count]]
+            cols = list(self.select)
             result = cursor.fetchone()
             if result:
                 return (result.get(alias or col.target.attname) for col, _, alias in cols)

@@ -1,4 +1,4 @@
-import os
+import logging
 
 from pymongo import MongoClient
 from pymongo.cursor import Cursor as MongoCursor
@@ -11,7 +11,7 @@ from pymongo.results import (
 
 from django_mongodb.database import InterfaceError, NotSupportedError
 
-DEBUG = os.environ.get("DEBUG", False)
+logger = logging.getLogger(__name__)
 
 
 class Cursor:
@@ -69,8 +69,7 @@ class Cursor:
         raise NotSupportedError
 
     def execute(self, command, params=None):
-        if DEBUG:
-            print(command)
+        logger.info(command)
         match command:
             case {"op": "aggregate"}:
                 self.result = self.connection[command["collection"]].aggregate(command["pipeline"])

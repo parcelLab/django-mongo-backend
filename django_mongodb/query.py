@@ -11,6 +11,7 @@ from django.db.models.lookups import (
     GreaterThan,
     GreaterThanOrEqual,
     In,
+    IntegerFieldExact,
     LessThan,
     LessThanOrEqual,
     Lookup,
@@ -38,12 +39,10 @@ class Node(ABC):
         return False
 
     @abc.abstractmethod
-    def get_mongo_query(self, compiler, connection, requires_search=...) -> dict:
-        ...
+    def get_mongo_query(self, compiler, connection, requires_search=...) -> dict: ...
 
     @abc.abstractmethod
-    def get_mongo_search(self, compiler, connection) -> dict:
-        ...
+    def get_mongo_search(self, compiler, connection) -> dict: ...
 
 
 class RawMongoQueryExpression(Node):
@@ -94,8 +93,7 @@ class MongoLookup(Node):
             return self._get_mongo_search(compiler, connection)
 
     @abc.abstractmethod
-    def _get_mongo_search(self, compiler, connection) -> dict:
-        ...
+    def _get_mongo_search(self, compiler, connection) -> dict: ...
 
 
 class MongoExact(MongoLookup):
@@ -148,7 +146,9 @@ class MongoEqualityComparison(MongoLookup):
     filter_operator: str
 
     def __init__(
-        self, operator: LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual, mongo_meta
+        self,
+        operator: LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual,
+        mongo_meta,
     ):
         super().__init__(operator, mongo_meta)
         self.filter_operator = {
@@ -186,8 +186,7 @@ class SearchNode(Node):
         return self._get_mongo_search(compiler, connection)
 
     @abstractmethod
-    def _get_mongo_search(self, compiler, connection) -> dict:
-        ...
+    def _get_mongo_search(self, compiler, connection) -> dict: ...
 
 
 class MongoSearchLookup(SearchNode):
@@ -260,6 +259,7 @@ class MongoWhereNode:
     node_map = {
         NothingNode: MongoNothingNode,
         Exact: MongoExact,
+        IntegerFieldExact: MongoExact,
         RelatedIn: MongoRelatedIn,
         RelatedExact: MongoExact,
         In: MongoIn,
@@ -314,7 +314,10 @@ class MongoWhereNode:
 
     def get_mongo_search(self, compiler, connection) -> dict:
         child_queries = list(
-            filter(bool, [child.get_mongo_search(compiler, connection) for child in self.children])
+            filter(
+                bool,
+                [child.get_mongo_search(compiler, connection) for child in self.children],
+            )
         )
         if len(child_queries) == 0:
             return {}
@@ -355,7 +358,10 @@ class MongoCountSelect:
     def get_mongo(self):
         return {
             "$group": {"_id": None, "_count": {"$sum": 1}},
-            "$project": {"_id": None, (self.alias or self.col.output_field.column): "$_count"},
+            "$project": {
+                "_id": None,
+                (self.alias or self.col.output_field.column): "$_count",
+            },
         }
 
 
