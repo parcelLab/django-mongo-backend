@@ -77,6 +77,18 @@ def test_mongo_lookup():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_int_isnull():
+    FooModel.objects.all().delete()
+
+    FooModel.objects.create(name="test", json_field={"foo": "bar"})
+    assert len(list(FooModel.objects.filter(int_field__isnull=True))) == 0
+    assert len(list(FooModel.objects.filter(name2__isnull=True))) == 1
+
+    assert len(list(FooModel.objects.exclude(int_field__isnull=True))) == 1
+    assert len(list(FooModel.objects.exclude(name2__isnull=True))) == 0
+
+
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_model_filter_delete():
     FooModel.objects.all().delete()
     item = FooModel.objects.create(
@@ -261,6 +273,18 @@ def test_mongo_raw_query():
 
     FooModel.objects.filter(RawMongoDBQuery({"name": "1"})).delete()
     assert len(FooModel.objects.all()) == 1
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_stages():
+    FooModel.objects.all().delete()
+    FooModel.objects.create(name="1", json_field={"foo": "bar"}, date_field=datetime.date.today())
+    FooModel.objects.create(name="2", json_field={"foo": "bar"}, date_field=datetime.date.today())
+    assert FooModel.objects.all().add_aggregation_stage({"$match": {"name": "1"}}).count() == 1
+    FooModel.objects.all().add_aggregation_stage({"$match": {"name": "1"}}).delete()
+    assert len(FooModel.objects.all()) == 1
+    FooModel.objects.all().add_aggregation_stage({"$match": {"name": {"$in": ["1", "2"]}}}).delete()
+    assert len(FooModel.objects.all()) == 0
 
 
 @pytest.mark.django_db(databases=["default"])

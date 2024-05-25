@@ -72,6 +72,8 @@ class SQLCompiler(BaseSQLCompiler):
             or mongo_where.requires_search()
         ) and not self.query.distinct  # search not supported / efficient for distinct queries
 
+        self._extend_with_stage(pipeline, "prepend")
+
         has_attname_as_key = False
         if mongo_where and build_search_pipeline:
             search = mongo_where.get_mongo_search(self, self.connection)
@@ -88,6 +90,8 @@ class SQLCompiler(BaseSQLCompiler):
                 {"$match": mongo_where.get_mongo_query(self, self.connection, is_search=False)}
             )
 
+        self._extend_with_stage(pipeline, "pre-sort")
+
         if self.query.distinct:
             has_attname_as_key = True
             pipeline.extend(self.get_distinct_clause())
@@ -102,6 +106,8 @@ class SQLCompiler(BaseSQLCompiler):
         if with_limit_offset and self.query.high_mark:
             pipeline.append({"$limit": self.query.high_mark - self.query.low_mark})
 
+        self._extend_with_stage(pipeline, "append")
+
         if (select_cols := self.select + extra_select) and not has_attname_as_key:
             select_pipeline = MongoSelect(select_cols, self.mongo_meta).get_mongo()
             pipeline.extend(select_pipeline)
@@ -113,6 +119,14 @@ class SQLCompiler(BaseSQLCompiler):
                 *pipeline,
             ],
         }
+
+    def _extend_with_stage(self, pipeline, position):
+        if not hasattr(self.query, "aggregation_stages"):
+            return
+        if self.query.aggregation_stages and any(
+            stages := [stage for pos, stage in self.query.aggregation_stages if pos == position]
+        ):
+            pipeline.extend(stages)
 
     @cached_property
     def mongo_meta(self):

@@ -12,6 +12,11 @@ from django.db.models.lookups import (
     GreaterThanOrEqual,
     In,
     IntegerFieldExact,
+    IntegerGreaterThan,
+    IntegerGreaterThanOrEqual,
+    IntegerLessThan,
+    IntegerLessThanOrEqual,
+    IsNull,
     LessThan,
     LessThanOrEqual,
     Lookup,
@@ -147,14 +152,24 @@ class MongoEqualityComparison(MongoLookup):
 
     def __init__(
         self,
-        operator: LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual,
+        operator: LessThan
+        | LessThanOrEqual
+        | GreaterThan
+        | GreaterThanOrEqual
+        | IntegerLessThan
+        | IntegerLessThanOrEqual
+        | IntegerGreaterThan,
         mongo_meta,
     ):
         super().__init__(operator, mongo_meta)
         self.filter_operator = {
+            IntegerLessThan: "$lt",
             LessThan: "$lt",
+            IntegerLessThanOrEqual: "$lt",
             LessThanOrEqual: "$lte",
+            IntegerGreaterThan: "$gt",
             GreaterThan: "$gt",
+            IntegerGreaterThanOrEqual: "$gte",
             GreaterThanOrEqual: "$gte",
         }[type(operator)]
 
@@ -163,6 +178,21 @@ class MongoEqualityComparison(MongoLookup):
             "range": {
                 "path": self.lhs.target.column,
                 self.filter_operator[1:-1]: self.rhs,
+            }
+        }
+
+
+class MongoIsNull(MongoLookup):
+    def _get_mongo_query(self, compiler, connection, is_search=False) -> dict:
+        return {self.lhs.target.column: None if self.rhs else {"$ne": None}}
+
+    def _get_mongo_search(self, compiler, connection) -> dict:
+        if self.lhs.target.attname not in self.mongo_meta["search_fields"]:
+            return {}
+        return {
+            "exists": {
+                "path": self.lhs.target.column,
+                "value": self.rhs,
             }
         }
 
@@ -264,11 +294,16 @@ class MongoWhereNode:
         RelatedExact: MongoExact,
         In: MongoIn,
         LessThan: MongoEqualityComparison,
+        IntegerLessThan: MongoEqualityComparison,
         LessThanOrEqual: MongoEqualityComparison,
+        IntegerLessThanOrEqual: MongoEqualityComparison,
         GreaterThan: MongoEqualityComparison,
+        IntegerGreaterThan: MongoEqualityComparison,
         GreaterThanOrEqual: MongoEqualityComparison,
+        IntegerGreaterThanOrEqual: MongoEqualityComparison,
         SearchVectorExact: MongoSearchVectorExact,
         RawMongoDBQuery: RawMongoQueryExpression,
+        IsNull: MongoIsNull,
     }
 
     def __init__(self, where: WhereNode, mongo_meta):
