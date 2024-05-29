@@ -6,3 +6,4 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_explaining_query_execution = False
     supports_json_field = True
     has_native_json_field = True
+    supports_unlimited_charfield = True
