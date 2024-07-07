@@ -1,7 +1,9 @@
 import datetime
 
 from bson import ObjectId
+from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
+from django.utils.timezone import is_aware, make_aware
 
 
 class DatabaseOperations(BaseDatabaseOperations):
@@ -52,6 +54,11 @@ class DatabaseOperations(BaseDatabaseOperations):
             return value.date()
         return value
 
+    def convert_datetime_value(self, value, expression, connection):
+        if settings.USE_TZ and isinstance(value, datetime.datetime) and not is_aware(value):
+            return make_aware(value)
+        return value
+
     def get_db_converters(self, expression):
         converters = super().get_db_converters(expression)
         internal_type = expression.output_field.get_internal_type()
@@ -60,4 +67,6 @@ class DatabaseOperations(BaseDatabaseOperations):
                 converters.append(self.convert_time_value)
             case "DateField":
                 converters.append(self.convert_date_value)
+            case "DateTimeField":
+                converters.append(self.convert_datetime_value)
         return converters

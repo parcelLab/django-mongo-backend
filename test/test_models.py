@@ -22,27 +22,28 @@ from testapp.models import (
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_model():
-    now = datetime.datetime.now().replace(microsecond=0)
+    fixed_now = now().replace(microsecond=0)
     item = FooModel.objects.create(
         name="test",
         json_field={"foo": "bar"},
     )
     assert item.id is not None
     FooModel.objects.filter(name="test").update(
-        datetime_field=now, date_field=now.date(), time_field=now.time()
+        datetime_field=fixed_now,
+        date_field=fixed_now.date(),
+        time_field=fixed_now.time(),
     )
     item.refresh_from_db()
     assert item.json_field == {"foo": "bar"}
     assert item.name == "test"
     assert isinstance(item.datetime_field, datetime.datetime)
-    assert item.datetime_field == now
-    assert item.date_field == now.date()
-    assert item.time_field == now.time()
+    assert item.datetime_field == fixed_now
+    assert item.date_field == fixed_now.date()
+    assert item.time_field == fixed_now.time()
 
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_db_prep():
-    FooModel.objects.all().delete()
     item = FooModel.objects.create(
         name="test",
         json_field={"foo": "bar"},
@@ -51,8 +52,22 @@ def test_db_prep():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
+def test_datatime_load_save():
+    fixed_now = now()
+    fixed_now = fixed_now.replace(microsecond=0)  # Mongo does not support this resolution
+    item = FooModel.objects.create(
+        name="test",
+    )
+    item.datetime_field = fixed_now
+    item.save()
+    item = FooModel.objects.get(pk=item.pk)
+    assert item.datetime_field.tzinfo is not None
+    assert str(item.datetime_field) == str(fixed_now)
+    item.save()
+
+
+@pytest.mark.django_db(databases=["mongodb"])
 def test_manager_methods():
-    FooModel.objects.all().delete()
     item1 = FooModel.objects.get_or_create(name="test", defaults={"json_field": {"foo": "bar"}})
     item2 = FooModel.objects.get_or_create(name="test", defaults={"json_field": {"foo": "bar"}})
     assert item1[0] is not None
@@ -61,14 +76,11 @@ def test_manager_methods():
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_emtpy():
-    FooModel.objects.all().delete()
     assert len(list(FooModel.objects.none())) == 0
 
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_lookup():
-    FooModel.objects.all().delete()
-
     FooModel.objects.create(name="test", json_field={"foo": "bar"})
     FooModel.objects.create(name="test2", json_field={"foo": "bar"})
 
@@ -78,8 +90,6 @@ def test_mongo_lookup():
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_int_isnull():
-    FooModel.objects.all().delete()
-
     FooModel.objects.create(name="test", json_field={"foo": "bar"})
     assert len(list(FooModel.objects.filter(int_field__isnull=True))) == 0
     assert len(list(FooModel.objects.filter(name2__isnull=True))) == 1
@@ -287,7 +297,7 @@ def test_mongo_stages():
     assert len(FooModel.objects.all()) == 0
 
 
-@pytest.mark.django_db(databases=["default"])
+@pytest.mark.django_db(databases=["default", "mongodb"])
 def test_reference_model():
     RefModel.objects.create(name="foo", json={"foo": "bar"})
     assert len(RefModel.objects.all()) == 1
