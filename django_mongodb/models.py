@@ -16,13 +16,16 @@ class ObjectIdFieldMixin:
         return self._validators
 
     def db_type(self, connection):
-        return "ObjectId"
+        return "ObjectId" if "ObjectIdField" in connection.data_types else "CHAR(24)"
 
     def to_python(self, value):
         if value is None or isinstance(value, bson.ObjectId):
             return value
         else:
             return bson.ObjectId(value)
+
+    def from_db_value(self, value, expression, connection):
+        return self.to_python(value)
 
     def get_prep_value(self, value):
         if value is None:
@@ -31,11 +34,14 @@ class ObjectIdFieldMixin:
             return bson.ObjectId(value)
         return bson.ObjectId(value)
 
+    def get_db_prep_value(self, value, connection, prepared=False):
+        return (
+            self.get_prep_value(value) if "ObjectIdField" in connection.data_types else str(value)
+        )
+
 
 class ObjectIdField(ObjectIdFieldMixin, models.CharField):
-    def __init__(self, *args, **kwargs):
-        kwargs["max_length"] = 24
-        super().__init__(*args, **kwargs)
+    pass
 
 
 class ObjectIdAutoField(ObjectIdFieldMixin, AutoField, metaclass=AutoFieldMeta):

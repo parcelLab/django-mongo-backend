@@ -57,7 +57,7 @@ class Cursor:
                 return -1
             return self.result.retrieved
         if isinstance(self.result, UpdateResult):
-            return self.result.modified_count
+            return self.result.matched_count  # update might be a no-op in case there are no changes
         raise NotSupportedError
 
     @property

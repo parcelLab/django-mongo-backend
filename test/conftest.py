@@ -4,6 +4,13 @@ import pytest
 from django.db import connections
 from pymongo.operations import SearchIndexModel
 
+from testapp.models import FooModel
+
+
+@pytest.fixture(autouse=True)
+def clean_db():
+    FooModel.objects.all().delete()
+
 
 @pytest.fixture()
 def search_index():

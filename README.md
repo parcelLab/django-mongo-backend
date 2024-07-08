@@ -132,6 +132,9 @@ MyModel.objects.select_related("same_table_child", "extends").all()
 
 # simple aggregations
 MyModel.objects.filter(name_in=["foo", "bar"]).count()
+
+# raw mongo filter
+MyModel.objects.filter(RawMongoDBQuery({"name": "1"})).delete()
 ```
 
 ### Search
