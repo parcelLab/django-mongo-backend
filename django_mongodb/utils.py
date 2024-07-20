@@ -9,7 +9,7 @@ def _extract_username_password(url: str) -> tuple[str, str, str]:
             netloc=url_components.hostname,
         )
 
-    return username, unquote(password), url_components.geturl()
+    return username, unquote(password) if password else None, url_components.geturl()
 
 
 def sanitize_client_opts(client_opts):
