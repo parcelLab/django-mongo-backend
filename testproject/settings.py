@@ -15,6 +15,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from django_mongodb.utils import sanitize_client_opts
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -86,7 +88,7 @@ DATABASES = {
     "mongodb": {
         "ENGINE": "django_mongodb",
         "NAME": "django_mongodb",
-        "CLIENT": {"host": os.environ.get("MONGODB_URL"), "connect": False},
+        "CLIENT": sanitize_client_opts({"host": os.environ.get("MONGODB_URL"), "connect": False}),
     },
 }
 DATABASE_ROUTERS = ["testproject.router.DatabaseRouter"]
