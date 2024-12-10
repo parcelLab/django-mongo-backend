@@ -34,7 +34,7 @@ jobs:
 
       - name: Run linters
         run: |
-          poetry run ruff .
+          poetry run ruff check .
           poetry run ruff format --check .
 
       - name: Start MongoDB
