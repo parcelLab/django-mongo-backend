@@ -15,6 +15,8 @@ class FooModel(models.Model):
     time_field = models.TimeField(auto_now_add=True)
     date_field = models.DateField(auto_now_add=True)
 
+    nested_field = models.CharField(db_column="nested.field", max_length=100)
+
     class MongoMeta:
         search_fields = {"name": ["string"], "name2": ["string"]}
 

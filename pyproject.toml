@@ -15,7 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
 ]
-version = "0.27.5"
+version = "0.27.6"
 description = ""
 authors = ["gersmann"]
 readme = "README.md"
@@ -33,8 +33,8 @@ python-dotenv = "^1.0"
 django-jsonform = "^2.22"
 pytest = "^8.1"
 pytest-django = "^4.8"
-ruff = "^0.4.5"
-pre-commit = "^3.7"
+ruff = "^0.8"
+pre-commit = "^4.0"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
