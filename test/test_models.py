@@ -124,6 +124,14 @@ def test_mongo_model_values():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
+def test_nested_value():
+    FooModel.objects.all().delete()
+    model = FooModel.objects.create(name="test", nested_field="test")
+    model.refresh_from_db()
+    assert model.nested_field == "test"
+
+
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_same_collection_inheritance():
     FooModel.objects.all().delete()
     obj = SameTableChild.objects.create(name="test", json_field={"foo": "bar"}, extended="extra")

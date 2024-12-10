@@ -1,6 +1,7 @@
 from functools import cached_property
 from itertools import chain
 
+from dictlib import dug
 from django.db.models.sql.compiler import (
     SQLCompiler as BaseSQLCompiler,
 )
@@ -240,12 +241,7 @@ class SQLInsertCompiler(SQLCompiler, BaseSQLInsertCompiler):
             return {
                 "collection": opts.db_table,
                 "op": "insert_one",
-                "document": {
-                    field.column: self.prepare_value(
-                        field, self.pre_save_val(field, self.query.objs[0])
-                    )
-                    for field in fields
-                },
+                "document": self._fields_to_doc(fields, self.query.objs[0]),
             }
         elif self.returning_fields:
             raise NotImplementedError(
@@ -253,12 +249,7 @@ class SQLInsertCompiler(SQLCompiler, BaseSQLInsertCompiler):
             )
         elif self.query.fields:
             insert_statement = [
-                InsertOne(
-                    {
-                        field.column: self.prepare_value(field, self.pre_save_val(field, obj))
-                        for field in fields
-                    }
-                )
+                InsertOne(self._fields_to_doc(fields, obj))
                 if not obj.pk
                 #  need to upsert if pk is given, because we support single collection inheritance
                 else UpdateOne(
@@ -286,6 +277,12 @@ class SQLInsertCompiler(SQLCompiler, BaseSQLInsertCompiler):
             "op": "bulk_write",
             "requests": insert_statement,
         }
+
+    def _fields_to_doc(self, fields, obj):
+        doc = {}
+        for field in fields:
+            dug(doc, field.column, self.prepare_value(field, self.pre_save_val(field, obj)))
+        return doc
 
     def execute_sql(self, returning_fields=None):
         assert not (
