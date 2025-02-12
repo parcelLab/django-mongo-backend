@@ -1,3 +1,4 @@
+import json
 import logging
 
 from pymongo import MongoClient
@@ -69,7 +70,7 @@ class Cursor:
         raise NotSupportedError
 
     def execute(self, command, params=None):
-        logger.info(command)
+        logger.debug(json.dumps(command, default=str))
         match command:
             case {"op": "aggregate"}:
                 self.result = self.connection[command["collection"]].aggregate(command["pipeline"])

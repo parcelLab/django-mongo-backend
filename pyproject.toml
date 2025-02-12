@@ -15,7 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
 ]
-version = "0.27.6"
+version = "0.27.8"
 description = ""
 authors = ["gersmann"]
 readme = "README.md"
