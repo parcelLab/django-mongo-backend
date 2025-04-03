@@ -81,22 +81,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     Database = Database
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, settings, *args, **kwargs):
+        super().__init__(settings, *args, **kwargs)
+        self.settings = settings
         self.mongo_client = None
 
     def get_connection_params(self):
         return self.settings_dict
 
     def get_new_connection(self, conn_params):
+        if not self.mongo_client:
+            self.mongo_client = MongoClient(**conn_params["CLIENT"])
         name = conn_params.get("NAME") or "test"
-        connection_params = conn_params.get("CLIENT")
-
-        if self.mongo_client is not None:
-            self.mongo_client.close()
-            self.mongo_client = None
-
-        self.mongo_client = MongoClient(**connection_params)
         return self.mongo_client[name]
 
     def get_database_version(self):
@@ -105,10 +101,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def create_cursor(self, name=None):
         return Cursor(self.mongo_client, self.connection)
 
+    def is_usable(self):
+        if self.connection is None:
+            return False
+        try:
+            self.connection.server_info()
+        except Exception:
+            return False
+        return True
+
     def _close(self):
-        if self.mongo_client is not None:
-            with self.wrap_database_errors:
-                self.mongo_client.close()
+        # nothing to do, MongoClient handles the connection pool
+        pass
 
     def _set_autocommit(self, autocommit):
         pass

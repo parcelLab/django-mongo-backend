@@ -305,7 +305,7 @@ def test_mongo_stages():
     assert len(FooModel.objects.all()) == 0
 
 
-@pytest.mark.django_db(databases=["default", "mongodb"])
+@pytest.mark.django_db(databases=["mongodb", "default"])
 def test_reference_model():
     RefModel.objects.create(name="foo", json={"foo": "bar"})
     assert len(RefModel.objects.all()) == 1

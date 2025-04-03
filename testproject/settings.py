@@ -87,7 +87,7 @@ DATABASES = {
     },
     "mongodb": {
         "ENGINE": "django_mongodb",
-        "NAME": "django_mongodb",
+        "NAME": "django_mongodb_db",
         "CLIENT": sanitize_client_opts({"host": os.environ.get("MONGODB_URL"), "connect": False}),
     },
 }
