@@ -21,9 +21,12 @@ class Cursor:
         self.connection = connection
         self.result: MongoCursor | InsertManyResult | DeleteResult | None = None
         self.batch_size = None
+        self.session = mongo_client.start_session()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+        if self.session:
+            self.session.end_session()
 
     def close(self):
         if self.result is not None and hasattr(self.result, "close"):
@@ -73,17 +76,25 @@ class Cursor:
         logger.debug(json.dumps(command, default=str))
         match command:
             case {"op": "aggregate"}:
-                self.result = self.connection[command["collection"]].aggregate(command["pipeline"])
+                self.result = self.connection[command["collection"]].aggregate(
+                    command["pipeline"], session=self.session
+                )
             case {"op": "insert_one"}:
-                self.result = self.connection[command["collection"]].insert_one(command["document"])
+                self.result = self.connection[command["collection"]].insert_one(
+                    command["document"], session=self.session
+                )
             case {"op": "update_many"}:
                 self.result = self.connection[command["collection"]].update_many(
-                    command["filter"], command["update"]
+                    command["filter"], command["update"], session=self.session
                 )
             case {"op": "bulk_write"}:
-                self.result = self.connection[command["collection"]].bulk_write(command["requests"])
+                self.result = self.connection[command["collection"]].bulk_write(
+                    command["requests"], session=self.session
+                )
             case {"op": "delete_many"}:
-                self.result = self.connection[command["collection"]].delete_many(command["filter"])
+                self.result = self.connection[command["collection"]].delete_many(
+                    command["filter"], session=self.session
+                )
             case _:
                 raise NotSupportedError
 
