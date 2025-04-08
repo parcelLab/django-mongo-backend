@@ -19,8 +19,8 @@ version = "0.28.4"
 description = ""
 authors = ["gersmann"]
 readme = "README.md"
-homepage = "https://github.com/gersmann/django-mongo-backend"
-repository = "https://github.com/gersmann/django-mongo-backend"
+homepage = "https://github.com/parcellab/django-mongo-backend"
+repository = "https://github.com/parcellab/django-mongo-backend"
 
 [tool.poetry.dependencies]
 python = "^3.11"
