@@ -32,3 +32,4 @@ oidc.key
 /track/data
 
 /dist/
+.tox/
