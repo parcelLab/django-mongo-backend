@@ -18,6 +18,12 @@ from django.db.models.sql.constants import (
     NO_RESULTS,
     SINGLE,
 )
+
+try:
+    from django.db.models.sql.constants import ROW_COUNT
+except ImportError:
+    ROW_COUNT = "row count"
+
 from pymongo import InsertOne, UpdateOne
 
 from django_mongodb.query import MongoOrdering, MongoSelect, MongoWhereNode
@@ -163,20 +169,22 @@ class SQLCompiler(BaseSQLCompiler):
             cols = list(self.select)
             result = cursor.fetchone()
             if result:
-                return [result.get(alias or col.target.attname) for col, _, alias in cols]
+                return (result.get(alias or col.target.attname) for col, _, alias in cols)
             return result
         if result_type == NO_RESULTS:
             cursor.close()
             return
 
-        return list(
-            cursor_iter(
-                cursor,
-                self.connection.features.empty_fetchmany_value,
-                None,
-                chunk_size,
-            )
+        if result_type == ROW_COUNT:
+            return cursor.rowcount
+
+        result = cursor_iter(
+            cursor,
+            self.connection.features.empty_fetchmany_value,
+            None,
+            chunk_size,
         )
+        return result
 
     def apply_converters(self, rows, converters):
         connection = self.connection
@@ -216,8 +224,8 @@ class SQLCompiler(BaseSQLCompiler):
             _row_tuples = self.apply_converters(_row_tuples, converters)
             if tuple_expected:
                 _row_tuples = map(tuple, _row_tuples)
-
-        return _row_tuples
+        for row in _row_tuples:
+            yield row
 
 
 class SQLDeleteCompiler(SQLCompiler):
@@ -345,5 +353,4 @@ class SQLUpdateCompiler(SQLCompiler):
             if is_empty and aux_rows:
                 rows = aux_rows
                 is_empty = False
-        print(rows)
         return rows

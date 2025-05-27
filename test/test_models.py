@@ -99,6 +99,22 @@ def test_mongo_int_isnull():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
+def test_mongo_model_all_delete():
+    FooModel.objects.create(
+        name="test",
+        json_field={"foo": "bar"},
+    )
+    FooModel.objects.create(
+        name="test2",
+        json_field={"foo": "bar"},
+    )
+    items = FooModel.objects.all()
+    assert len(items) == 2
+    assert items.delete() == (2, {"testapp.SameTableOneToOne": 2})
+    assert FooModel.objects.all().count() == 0
+
+
+@pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_model_filter_delete():
     FooModel.objects.all().delete()
     item = FooModel.objects.create(

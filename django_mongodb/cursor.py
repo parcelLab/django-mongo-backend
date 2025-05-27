@@ -99,9 +99,6 @@ class Cursor:
                 raise NotSupportedError
 
     def fetchmany(self, size=1):
-        if isinstance(self.result, DeleteResult):
-            return size
-
         rows = []
         if self.batch_size != size:
             self.batch_size = size
@@ -111,6 +108,7 @@ class Cursor:
                 rows.append(self.result.next())
             except StopIteration:
                 return rows
+
         return rows
 
     def fetchone(self):

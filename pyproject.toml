@@ -32,6 +32,15 @@ pytest = "^8.3"
 pytest-django = "4.10.0"
 ruff = "^0.11"
 pre-commit = "^4.2"
+django = [
+  { markers = "extra == 'django51' and extra != 'django52'", version = ">=5.1,<5.2", optional = true },
+  { markers = "extra == 'django52' and extra != 'django51'", version = ">=5.2,<5.3", optional = true },
+]
+
+
+[tool.poetry.extras]
+django51 = ["django"]
+django52 = ["django"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -73,46 +82,35 @@ env_list = ["django51", "django52"]
 allowlist_externals = ["poetry"]
 description = "Run test under {base_python}"
 require_locked_deps = true
-commands_pre = [["poetry", "install", "--no-root", "--with", "dev"]]
 skip_install = true
-passenv = ["DJANGO_SETTINGS_MODULE", "MONGODB_URL"]
+passenv = ["DJANGO_SETTINGS_MODULE", "MONGODB_URL", "PYTEST_ADDOPTS", "CI"]
+commands = [["poetry", "run", "pytest", "-x", "-vvv", "--capture=no"]]
 
 [tool.tox.env.django51]
 description = "run type check on code base"
-commands = [
+commands_pre = [
   [
     "poetry",
-    "run",
-    "pip",
     "install",
-    "django>=5.1,<5.2",
-  ],
-  [
-    "poetry",
-    "run",
-    "pytest",
-    "-x",
-    "--capture=no",
+    "--no-root",
+    "--with",
+    "dev",
+    '--extras',
+    'django51',
   ],
 ]
 
 [tool.tox.env.django52]
 description = "run type check on code base"
-commands = [
+commands_pre = [
   [
     "poetry",
-    "run",
-    "pip",
     "install",
-    "django>=5.2,<5.3",
-  ],
-  [
-    "poetry",
-    "run",
-    "pytest",
-    "-x",
-    "-vvv",
-    "--capture=no",
+    "--no-root",
+    "--with",
+    "dev",
+    '--extras',
+    'django52',
   ],
 ]
 
