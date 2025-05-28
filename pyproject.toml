@@ -12,9 +12,10 @@ classifiers = [
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
 ]
-version = "0.28.4"
+version = "0.29"
 description = ""
-authors = ["gersmann"]
+authors = ["gersmann", "parcellab"]
+license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/parcellab/django-mongo-backend"
 repository = "https://github.com/parcellab/django-mongo-backend"
