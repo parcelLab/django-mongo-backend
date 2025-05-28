@@ -2,6 +2,7 @@ import datetime
 
 from bson import ObjectId
 from django.conf import settings
+from django.db.backends import utils
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils.timezone import is_aware, make_aware
 
@@ -70,3 +71,10 @@ class DatabaseOperations(BaseDatabaseOperations):
             case "DateTimeField":
                 converters.append(self.convert_datetime_value)
         return converters
+
+    def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
+        """
+        Transform a decimal.Decimal value to an object compatible with what is
+        expected by the backend driver for decimal (numeric) columns.
+        """
+        return utils.format_number(value, max_digits, decimal_places)

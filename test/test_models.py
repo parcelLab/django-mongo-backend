@@ -12,6 +12,7 @@ from django_mongodb.expressions import RawMongoDBQuery
 from django_mongodb.query import RequiresSearchIndex
 from refapp.models import RefModel
 from testapp.models import (
+    DecimalFieldModel,
     DifferentTableOneToOne,
     FooModel,
     RelatedModel,
@@ -327,3 +328,8 @@ def test_reference_model():
     assert len(RefModel.objects.all()) == 1
     assert len(RefModel.objects.filter(name="foo").all()) == 1
     RefModel.objects.filter(name="foo").delete()
+
+
+@pytest.mark.django_db(databases=["mongodb", "default"])
+def test_decimal_field():
+    DecimalFieldModel.objects.create()
