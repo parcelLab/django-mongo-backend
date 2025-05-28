@@ -1,23 +1,21 @@
 [tool.poetry]
 name = "django-mongo-backend"
-packages = [
-    { include = "django_mongodb" },
-]
+packages = [{ include = "django_mongodb" }]
 keywords = ["django", "mongodb", "backend"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Environment :: Web Environment",
-    "Framework :: Django",
-    "Framework :: Django :: 4.0",
-    "Framework :: Django :: 4.1",
-    "Framework :: Django :: 4.2",
-    "Framework :: Django :: 5.0",
-    "Intended Audience :: Developers",
-    "Operating System :: OS Independent",
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Framework :: Django",
+  "Framework :: Django :: 5.0",
+  "Framework :: Django :: 5.1",
+  "Framework :: Django :: 5.2",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
 ]
-version = "0.28.4"
+version = "0.29"
 description = ""
-authors = ["gersmann"]
+authors = ["gersmann", "parcellab"]
+license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/parcellab/django-mongo-backend"
 repository = "https://github.com/parcellab/django-mongo-backend"
@@ -27,14 +25,24 @@ python = "^3.11"
 dictlib = "^1.1"
 pymongo = "^4.11"
 
-[tool.poetry.dev-dependencies]
-django = "^5.2"
+[tool.poetry.group.dev.dependencies]
 python-dotenv = "^1.1"
 django-jsonform = "^2.23"
 pytest = "^8.3"
 pytest-django = "4.10.0"
 ruff = "^0.11"
 pre-commit = "^4.2"
+django = [
+  { markers = "extra == 'django51' and extra != 'django52' and extra != 'django5'", version = ">=5.1,<5.2", optional = true },
+  { markers = "extra == 'django52' and extra != 'django51' and extra != 'django5'", version = ">=5.2,<5.3", optional = true },
+  { markers = "extra == 'django5' and extra != 'django51' and extra != 'django52'", version = ">=5,<5.1", optional = true },
+]
+
+
+[tool.poetry.extras]
+django51 = ["django"]
+django52 = ["django"]
+django5 = ["django"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -48,26 +56,80 @@ python_classes = "Test*"
 [tool.ruff]
 line-length = 100
 target-version = 'py311'
-exclude = [
-	"migrations"
-]
+exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "C",  # flake8-comprehensions
-    "B",  # flake8-bugbear
-    "UP", # pyupgrade
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "F",  # pyflakes
+  "I",  # isort
+  "C",  # flake8-comprehensions
+  "B",  # flake8-bugbear
+  "UP", # pyupgrade
 ]
 ignore = [
-	"E501", # line length handled by format
-	"C408", # dict vs dict literal
+  "E501", # line length handled by format
+  "C408", # dict vs dict literal
 ]
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.tox.env_run_base]
+requires = ["tox>=4.19"]
+env_list = ["django51", "django52", "django5"]
+allowlist_externals = ["poetry"]
+description = "Run test under {base_python}"
+require_locked_deps = true
+skip_install = true
+passenv = ["DJANGO_SETTINGS_MODULE", "MONGODB_URL", "PYTEST_ADDOPTS", "CI"]
+commands = [["poetry", "run", "pytest", "-x", "-vvv", "--capture=no"]]
+
+[tool.tox.env.django5]
+commands_pre = [
+  [
+    "poetry",
+    "install",
+    "--no-root",
+    "--with",
+    "dev",
+    '--extras',
+    'django5',
+  ],
+]
+
+
+[tool.tox.env.django51]
+description = "run type check on code base"
+commands_pre = [
+  [
+    "poetry",
+    "install",
+    "--no-root",
+    "--with",
+    "dev",
+    '--extras',
+    'django51',
+  ],
+]
+
+[tool.tox.env.django52]
+description = "run type check on code base"
+commands_pre = [
+  [
+    "poetry",
+    "install",
+    "--no-root",
+    "--with",
+    "dev",
+    '--extras',
+    'django52',
+  ],
+]
+
+[tool.tox.gh.python]
+"3.13" = ["django51", "django52", "django5"]
+"3.12" = ["django51", "django52", "django5"]

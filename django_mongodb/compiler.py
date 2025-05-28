@@ -18,6 +18,12 @@ from django.db.models.sql.constants import (
     NO_RESULTS,
     SINGLE,
 )
+
+try:
+    from django.db.models.sql.constants import ROW_COUNT
+except ImportError:
+    ROW_COUNT = "row count"
+
 from pymongo import InsertOne, UpdateOne
 
 from django_mongodb.query import MongoOrdering, MongoSelect, MongoWhereNode
@@ -168,6 +174,9 @@ class SQLCompiler(BaseSQLCompiler):
         if result_type == NO_RESULTS:
             cursor.close()
             return
+
+        if result_type == ROW_COUNT:
+            return cursor.rowcount
 
         result = cursor_iter(
             cursor,

@@ -108,6 +108,7 @@ class Cursor:
                 rows.append(self.result.next())
             except StopIteration:
                 return rows
+
         return rows
 
     def fetchone(self):
