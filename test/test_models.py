@@ -2,16 +2,22 @@ import datetime
 import os
 import time
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from bson import ObjectId
+from bson.decimal128 import Decimal128
+from django.conf import settings
 from django.contrib.postgres.search import SearchQuery, SearchVector
+from django.db import models
 from django.utils.timezone import now
+from pymongo import MongoClient
 
 from django_mongodb.expressions import RawMongoDBQuery
 from django_mongodb.query import RequiresSearchIndex
 from refapp.models import RefModel
 from testapp.models import (
+    DecimalFieldModel,
     DifferentTableOneToOne,
     FooModel,
     RelatedModel,
@@ -327,3 +333,244 @@ def test_reference_model():
     assert len(RefModel.objects.all()) == 1
     assert len(RefModel.objects.filter(name="foo").all()) == 1
     RefModel.objects.filter(name="foo").delete()
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_basic():
+    """Test basic decimal field CRUD operations with BSON Decimal128."""
+    # Test create with default value
+    obj = DecimalFieldModel.objects.create()
+    assert obj.value == Decimal("0")
+
+    # Test create with specific value
+    test_value = Decimal("123.45")
+    obj2 = DecimalFieldModel.objects.create(value=test_value)
+    obj2.refresh_from_db()
+    assert obj2.value == test_value
+    assert isinstance(obj2.value, Decimal)
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_precision():
+    """Test decimal field precision preservation."""
+    # Test various precision values
+    test_cases = [
+        Decimal("0.01"),
+        Decimal("99999999.99"),  # Max for 10 digits, 2 decimal places
+        Decimal("-123.45"),
+        Decimal("0.00"),
+        Decimal("1234567.89"),
+    ]
+
+    for test_value in test_cases:
+        obj = DecimalFieldModel.objects.create(value=test_value)
+        obj.refresh_from_db()
+        assert obj.value == test_value
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_string_conversion():
+    """Test storing and retrieving string decimals."""
+    # Create object with string value
+    obj = DecimalFieldModel.objects.create(value="456.78")
+    obj.refresh_from_db()
+    assert obj.value == Decimal("456.78")
+    assert isinstance(obj.value, Decimal)
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_none_handling():
+    """Test None/null handling in decimal fields."""
+
+    # Create a model with nullable decimal field for proper None testing
+    class NullableDecimalModel(models.Model):
+        value = models.DecimalField(null=True, blank=True, decimal_places=2, max_digits=10)
+
+        class Meta:
+            app_label = "testapp"
+            db_table = "testapp_nullabledecimalmodel"
+
+    # Create object with None value
+    obj = NullableDecimalModel.objects.create(value=None)
+    obj.refresh_from_db()
+    assert obj.value is None
+
+    # Update None to a decimal value
+    obj.value = Decimal("123.45")
+    obj.save()
+    obj.refresh_from_db()
+    assert obj.value == Decimal("123.45")
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_filtering():
+    """Test filtering operations on decimal fields."""
+    DecimalFieldModel.objects.all().delete()
+
+    # Create test data
+    values = [Decimal("10.50"), Decimal("20.75"), Decimal("30.00"), Decimal("5.25")]
+    for val in values:
+        DecimalFieldModel.objects.create(value=val)
+
+    # Test exact match
+    assert DecimalFieldModel.objects.filter(value=Decimal("10.50")).count() == 1
+
+    # Test greater than
+    assert DecimalFieldModel.objects.filter(value__gt=Decimal("20")).count() == 2
+
+    # Test less than or equal
+    assert DecimalFieldModel.objects.filter(value__lte=Decimal("20.75")).count() == 3
+
+    # Test range
+    assert (
+        DecimalFieldModel.objects.filter(value__gte=Decimal("10"), value__lte=Decimal("25")).count()
+        == 2
+    )
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_ordering():
+    """Test ordering by decimal fields."""
+    DecimalFieldModel.objects.all().delete()
+
+    values = [Decimal("30.00"), Decimal("10.50"), Decimal("20.75"), Decimal("5.25")]
+    for val in values:
+        DecimalFieldModel.objects.create(value=val)
+
+    # Test ascending order
+    ordered = list(DecimalFieldModel.objects.order_by("value").values_list("value", flat=True))
+    assert ordered == [Decimal("5.25"), Decimal("10.50"), Decimal("20.75"), Decimal("30.00")]
+
+    # Test descending order
+    ordered_desc = list(
+        DecimalFieldModel.objects.order_by("-value").values_list("value", flat=True)
+    )
+    assert ordered_desc == [Decimal("30.00"), Decimal("20.75"), Decimal("10.50"), Decimal("5.25")]
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_update():
+    """Test updating decimal fields."""
+    obj = DecimalFieldModel.objects.create(value=Decimal("100.00"))
+
+    # Update via save
+    obj.value = Decimal("200.50")
+    obj.save()
+    obj.refresh_from_db()
+    assert obj.value == Decimal("200.50")
+
+    # Update via queryset
+    DecimalFieldModel.objects.filter(id=obj.id).update(value=Decimal("300.75"))
+    obj.refresh_from_db()
+    assert obj.value == Decimal("300.75")
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_edge_cases():
+    """Test edge cases for decimal fields."""
+    # Test zero
+    obj = DecimalFieldModel.objects.create(value=Decimal("0"))
+    obj.refresh_from_db()
+    assert obj.value == Decimal("0")
+
+    # Test negative zero (should be normalized to zero)
+    obj2 = DecimalFieldModel.objects.create(value=Decimal("-0"))
+    obj2.refresh_from_db()
+    assert obj2.value == Decimal("0")
+
+    # Test very small decimal
+    obj3 = DecimalFieldModel.objects.create(value=Decimal("0.01"))
+    obj3.refresh_from_db()
+    assert obj3.value == Decimal("0.01")
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_aggregation():
+    """Test aggregation operations on decimal fields."""
+    DecimalFieldModel.objects.all().delete()
+
+    # Create test data
+    values = [Decimal("10.50"), Decimal("20.75"), Decimal("30.00")]
+    for val in values:
+        DecimalFieldModel.objects.create(value=val)
+
+    # Test exists
+    assert DecimalFieldModel.objects.filter(value__gt=Decimal("0")).exists()
+
+    # Test count
+    assert DecimalFieldModel.objects.filter(value__gte=Decimal("20")).count() == 2
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_decimal_field_backward_compatibility():
+    """Test backward compatibility with legacy string decimal storage."""
+
+    # Connect directly to MongoDB to insert string decimal values
+    db_settings = settings.DATABASES["mongodb"]
+    client = MongoClient(**db_settings["CLIENT"])
+    db = client[db_settings["NAME"]]
+    collection = db["testapp_decimalfieldmodel"]
+
+    # Clean up
+    collection.delete_many({})
+
+    # Insert legacy string decimal values directly
+    collection.insert_many(
+        [
+            {"value": "123.45"},  # String decimal
+            {"value": Decimal128("678.90")},  # BSON Decimal128
+            {"value": None},  # Null value
+        ]
+    )
+
+    # Test that Django can read all formats correctly
+    all_objects = list(DecimalFieldModel.objects.all())
+    assert len(all_objects) == 3
+
+    # Check that we can read all values correctly
+    values = [obj.value for obj in all_objects]
+    assert None in values
+    assert Decimal("123.45") in values
+    assert Decimal("678.90") in values
+
+    # Test filtering works with null values
+    assert DecimalFieldModel.objects.filter(value__isnull=True).count() == 1
+    assert DecimalFieldModel.objects.filter(value__isnull=False).count() == 2
+
+    # Update all values to ensure they're stored as BSON Decimal128
+    for obj in DecimalFieldModel.objects.all():
+        if obj.value is not None:
+            obj.save()  # This will convert string to Decimal128
+
+    # Now filtering should work correctly
+    assert DecimalFieldModel.objects.filter(value__gt=Decimal("200")).count() == 1
+    assert DecimalFieldModel.objects.filter(value__lt=Decimal("200")).count() == 1
+
+
+@pytest.mark.django_db(databases=["mongodb"])
+def test_in_lookup_field_conversion():
+    """Test that __in lookups properly convert field values."""
+    # Test with ObjectId fields (FooModel)
+    item1 = FooModel.objects.create(name="test1", json_field={"foo": "bar"})
+    item2 = FooModel.objects.create(name="test2", json_field={"foo": "baz"})
+
+    # Test ObjectId __in lookup
+    result = FooModel.objects.filter(id__in=[item1.id, item2.id])
+    assert result.count() == 2
+
+    # Test with string IDs
+    result = FooModel.objects.filter(id__in=[str(item1.id), str(item2.id)])
+    assert result.count() == 2
+
+    # Test with DecimalField
+    DecimalFieldModel.objects.all().delete()
+    DecimalFieldModel.objects.create(value=Decimal("10.50"))
+    DecimalFieldModel.objects.create(value=Decimal("20.75"))
+
+    # Test Decimal __in lookup
+    result = DecimalFieldModel.objects.filter(value__in=[Decimal("10.50"), Decimal("20.75")])
+    assert result.count() == 2
+
+    # Test with mixed types (should still work due to field conversion)
+    result = DecimalFieldModel.objects.filter(value__in=[Decimal("10.50"), "20.75"])
+    assert result.count() == 2

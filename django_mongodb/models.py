@@ -4,6 +4,8 @@ from django.db.models.fields import AutoField, AutoFieldMeta
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
+from django_mongodb.fields import DecimalField
+
 
 class ObjectIdFieldMixin:
     description = "MongoDB ObjectIdField"
@@ -57,3 +59,6 @@ class ObjectIdAutoField(ObjectIdFieldMixin, AutoField, metaclass=AutoFieldMeta):
 
     def rel_db_type(self, connection):
         return ObjectIdField().db_type(connection=connection)
+
+
+__all__ = ["ObjectIdField", "ObjectIdAutoField", "DecimalField"]

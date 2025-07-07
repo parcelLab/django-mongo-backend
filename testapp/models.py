@@ -1,7 +1,10 @@
+from decimal import Decimal
+
 from django.db import models
 from django.db.models import JSONField
 
 from django_mongodb.managers import MongoManager
+from django_mongodb.models import DecimalField
 
 
 class FooModel(models.Model):
@@ -63,3 +66,11 @@ class DifferentTableOneToOne(models.Model):
 class RelatedModel(models.Model):
     name = models.CharField(max_length=100)
     foo = models.ForeignKey(FooModel, on_delete=models.CASCADE, related_name="related")
+
+
+class DecimalFieldModel(models.Model):
+    value = DecimalField(
+        default=Decimal("0"),
+        decimal_places=2,
+        max_digits=10,
+    )
