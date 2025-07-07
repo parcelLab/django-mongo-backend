@@ -1,8 +1,9 @@
 import datetime
+from decimal import Decimal
 
 from bson import ObjectId
+from bson.decimal128 import Decimal128
 from django.conf import settings
-from django.db.backends import utils
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils.timezone import is_aware, make_aware
 
@@ -60,6 +61,29 @@ class DatabaseOperations(BaseDatabaseOperations):
             return make_aware(value)
         return value
 
+    def convert_decimalfield_value(self, value, expression, connection):
+        """
+        Convert BSON Decimal128 back to Python Decimal.
+        Also handles string values for backward compatibility.
+        """
+        if value is None:
+            return None
+
+        # If it's a Decimal128, convert to Python Decimal
+        if isinstance(value, Decimal128):
+            return value.to_decimal()
+
+        # If it's a string, convert to Decimal
+        if isinstance(value, str):
+            return Decimal(value)
+
+        # If it's already a Decimal, return as is
+        if isinstance(value, Decimal):
+            return value
+
+        # Fallback to Decimal conversion
+        return Decimal(str(value))
+
     def get_db_converters(self, expression):
         converters = super().get_db_converters(expression)
         internal_type = expression.output_field.get_internal_type()
@@ -70,11 +94,28 @@ class DatabaseOperations(BaseDatabaseOperations):
                 converters.append(self.convert_date_value)
             case "DateTimeField":
                 converters.append(self.convert_datetime_value)
+            case "DecimalField":
+                converters.append(self.convert_decimalfield_value)
         return converters
 
     def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
         """
-        Transform a decimal.Decimal value to an object compatible with what is
-        expected by the backend driver for decimal (numeric) columns.
+        Transform a decimal.Decimal value to a BSON Decimal128 object.
         """
-        return utils.format_number(value, max_digits, decimal_places)
+        if value is None:
+            return None
+
+        # If it's already a Decimal128, return as is
+        if isinstance(value, Decimal128):
+            return value
+
+        # Convert to Decimal if it's a string
+        if isinstance(value, str):
+            value = Decimal(value)
+
+        # Convert Python Decimal to BSON Decimal128
+        if isinstance(value, Decimal):
+            return Decimal128(str(value))
+
+        # Fallback to string representation
+        return Decimal128(str(value))

@@ -87,6 +87,13 @@ class MongoLookup(Node):
         rhs = self.rhs
         if is_search and self.mongo_meta["search_fields"].get(lhs.attname):
             return {}
+        # Convert the rhs value using the field's database conversion method
+        if hasattr(lhs, "get_db_prep_value"):
+            # For In lookups, rhs is a list and we need to convert each item
+            if self.filter_operator == "$in" and isinstance(rhs, list | tuple):
+                rhs = [lhs.get_db_prep_value(item, connection) for item in rhs]
+            else:
+                rhs = lhs.get_db_prep_value(rhs, connection)
         return {lhs.column: {self.filter_operator: rhs}}
 
     def get_mongo_search(self, compiler, connection) -> dict:
