@@ -81,6 +81,27 @@ class MyModel(models.Model):
     date_field = models.DateField(auto_now_add=True)
 ```
 
+#### DecimalField Support
+
+Django-mongo-backend supports `DecimalField` for storing decimal values as BSON Decimal128:
+
+- **Django 5.2+**: Use the built-in `django.db.models.DecimalField` directly
+- **Django < 5.2**: Use `django_mongodb.models.DecimalField` for proper MongoDB compatibility
+
+```python
+# For Django 5.2+
+from django.db import models
+
+class Product(models.Model):
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+# For Django < 5.2
+from django_mongodb.models import DecimalField
+
+class Product(models.Model):
+    price = DecimalField(max_digits=10, decimal_places=2)
+```
+
 Single table inheritance
 
 ```python

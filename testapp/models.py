@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import JSONField
 
 from django_mongodb.managers import MongoManager
+from django_mongodb.models import DecimalField
 
 
 class FooModel(models.Model):
@@ -68,7 +69,7 @@ class RelatedModel(models.Model):
 
 
 class DecimalFieldModel(models.Model):
-    value = models.DecimalField(
+    value = DecimalField(
         default=Decimal("0"),
         decimal_places=2,
         max_digits=10,
