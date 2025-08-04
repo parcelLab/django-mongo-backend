@@ -10,13 +10,22 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Publish PyPi package
-        uses: code-specialist/pypi-poetry-publish@v1
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PUBLISH_REGISTRY_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-          BRANCH: main
-          PACKAGE_DIRECTORY: ./django_mongodb/
-          PYTHON_VERSION: 3.11
-          POETRY_VERSION: 1.7.1
-          POETRY_CORE_VERSION: 1.8.1
+          python-version: '3.11'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      
+      - name: Build package
+        run: |
+          uv build
+      
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv publish
