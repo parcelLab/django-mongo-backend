@@ -91,19 +91,35 @@ dev = [
     { name = "python-dotenv" },
     { name = "ruff" },
 ]
+dev-django = [
+    { name = "django" },
+    { name = "django-jsonform" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-django" },
+    { name = "python-dotenv" },
+    { name = "ruff" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "dictlib", specifier = ">=1.1" },
+    { name = "django", marker = "extra == 'dev-django'", specifier = ">=5.2,<5.3" },
     { name = "django-jsonform", marker = "extra == 'dev'", specifier = ">=2.23" },
+    { name = "django-jsonform", marker = "extra == 'dev-django'", specifier = ">=2.23" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.2" },
+    { name = "pre-commit", marker = "extra == 'dev-django'", specifier = ">=4.2" },
     { name = "pymongo", specifier = ">=4.11" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
+    { name = "pytest", marker = "extra == 'dev-django'", specifier = ">=8.3" },
     { name = "pytest-django", marker = "extra == 'dev'", specifier = "==4.10.0" },
+    { name = "pytest-django", marker = "extra == 'dev-django'", specifier = "==4.10.0" },
     { name = "python-dotenv", marker = "extra == 'dev'", specifier = ">=1.1" },
+    { name = "python-dotenv", marker = "extra == 'dev-django'", specifier = ">=1.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11" },
+    { name = "ruff", marker = "extra == 'dev-django'", specifier = ">=0.11" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "dev-django"]
 
 [[package]]
 name = "dnspython"

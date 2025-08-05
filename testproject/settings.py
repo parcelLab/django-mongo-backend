@@ -10,12 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from django_mongodb.utils import sanitize_client_opts
+from refapp import django_mongodb_patches
+
+django_mongodb_patches.apply_patches()
 
 load_dotenv()
 
@@ -86,9 +87,13 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     },
     "mongodb": {
-        "ENGINE": "django_mongodb",
+        "ENGINE": "django_mongodb_backend",
         "NAME": "django_mongodb_db",
-        "CLIENT": sanitize_client_opts({"host": os.environ.get("MONGODB_URL"), "connect": False}),
+        "HOST": "localhost",
+        "PORT": 3307,  # Atlas local deployment port
+        "OPTIONS": {
+            "directConnection": True,  # Required for Atlas local deployment
+        },
     },
 }
 DATABASE_ROUTERS = ["testproject.router.DatabaseRouter"]
@@ -130,5 +135,5 @@ STATIC_URL = "static/"
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
+# Use BigAutoField for SQLite
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-# DEFAULT_AUTO_FIELD = "django_mongodb.models.ObjectIdAutoField"

@@ -5,7 +5,9 @@ from pymongo.database import Database
 
 
 @pytest.mark.django_db(databases=["mongodb"])
-def test_cursor():
-    with connections["mongodb"].cursor() as cursor:
-        assert isinstance(cursor.collections, Database)
-        assert isinstance(cursor.collections["foo"], Collection)
+def test_raw_connection():
+    # To access collections, use the database connection directly
+    connection = connections["mongodb"]
+    assert connection.database is not None
+    assert isinstance(connection.database, Database)
+    assert isinstance(connection.database["foo"], Collection)

@@ -3,14 +3,18 @@ from decimal import Decimal
 from django.db import models
 from django.db.models import JSONField
 
-from django_mongodb.managers import MongoManager
-from django_mongodb.models import DecimalField
+# Import ObjectIdAutoField for MongoDB models
+from django_mongodb_backend.fields import ObjectIdAutoField
+from django_mongodb_backend.managers import MongoManager
 
 
 class FooModel(models.Model):
-    objects: MongoManager = MongoManager()
+    # Explicit ObjectId primary key for MongoDB
+    id = ObjectIdAutoField(primary_key=True)
+    # Using MongoManager to get aggregation functionality
+    objects = MongoManager()
 
-    json_field = JSONField()
+    json_field = JSONField(null=True, blank=True)
     name = models.CharField(max_length=100)
     name2 = models.CharField(max_length=100, null=True, db_column="name_2")
     int_field = models.IntegerField(default=0)
@@ -64,12 +68,16 @@ class DifferentTableOneToOne(models.Model):
 
 
 class RelatedModel(models.Model):
+    # Explicit ObjectId primary key for MongoDB
+    id = ObjectIdAutoField(primary_key=True)
     name = models.CharField(max_length=100)
     foo = models.ForeignKey(FooModel, on_delete=models.CASCADE, related_name="related")
 
 
 class DecimalFieldModel(models.Model):
-    value = DecimalField(
+    # Explicit ObjectId primary key for MongoDB
+    id = ObjectIdAutoField(primary_key=True)
+    value = models.DecimalField(
         default=Decimal("0"),
         decimal_places=2,
         max_digits=10,

@@ -8,21 +8,22 @@ import pytest
 from bson import ObjectId
 from bson.decimal128 import Decimal128
 from django.conf import settings
-from django.contrib.postgres.search import SearchQuery, SearchVector
+
+# SearchQuery and SearchVector are not used with the official backend
 from django.db import models
 from django.utils.timezone import now
+from django_mongodb_backend.fields import ObjectIdAutoField
 from pymongo import MongoClient
 
-from django_mongodb.expressions import RawMongoDBQuery
-from django_mongodb.query import RequiresSearchIndex
+# RawMongoDBQuery not supported in official backend
+# The official package doesn't have these yet, we'll need to adapt tests
+# from django_mongodb.expressions import RawMongoDBQuery
+# from django_mongodb.query import RequiresSearchIndex
 from refapp.models import RefModel
 from testapp.models import (
     DecimalFieldModel,
-    DifferentTableOneToOne,
     FooModel,
     RelatedModel,
-    SameTableChild,
-    SameTableOneToOne,
 )
 
 
@@ -148,47 +149,16 @@ def test_mongo_model_values():
 @pytest.mark.django_db(databases=["mongodb"])
 def test_nested_value():
     FooModel.objects.all().delete()
-    model = FooModel.objects.create(name="test", nested_field="test")
+    model = FooModel.objects.create(name="test", json_field={}, nested_field="test")
     model.refresh_from_db()
     assert model.nested_field == "test"
 
 
-@pytest.mark.django_db(databases=["mongodb"])
-def test_mongo_same_collection_inheritance():
-    FooModel.objects.all().delete()
-    obj = SameTableChild.objects.create(name="test", json_field={"foo": "bar"}, extended="extra")
-    obj1 = SameTableChild.objects.get(id=obj.id)
-    obj2 = FooModel.objects.get(id=obj.id)
-    assert obj1.pk == obj2.pk
-    obj2.name = "test2"
-    obj2.save()
-    obj1.refresh_from_db()
-    assert obj1.name == obj2.name
-    assert obj.extended == "extra"
+# Removed test_mongo_same_collection_inheritance - not using same table inheritance anymore
 
+# Removed test_mongo_same_collection_one_to_one - not using same table one-to-one anymore
 
-@pytest.mark.django_db(databases=["mongodb"])
-def test_mongo_same_collection_one_to_one():
-    FooModel.objects.all().delete()
-    obj1 = FooModel.objects.create(name="test", json_field={"foo": "bar"})
-    obj1.extends = SameTableOneToOne(extra="extra")
-    obj1.extends.save()
-    obj2 = FooModel.objects.get(id=obj1.id)
-    assert obj2.pk == obj2.extends.pk
-    assert obj2.extends.extra == "extra"
-
-
-@pytest.mark.django_db(databases=["mongodb"])
-def test_mongo_different_collection_one_to_one_select():
-    FooModel.objects.all().delete()
-    obj1 = FooModel.objects.create(name="test", json_field={"foo": "bar"})
-    obj1.another_extends = DifferentTableOneToOne(extra="extra")
-    obj1.another_extends.save()
-    obj2 = FooModel.objects.get(id=obj1.id)
-    assert obj2.another_extends.extra == "extra"
-    with pytest.raises(NotImplementedError):
-        obj3 = FooModel.objects.select_related("another_extends").get(id=obj1.id)
-        assert obj3.another_extends.extra == "extra"
+# Removed test_mongo_different_collection_one_to_one_select - not using this pattern anymore
 
 
 @pytest.mark.django_db(databases=["mongodb"])
@@ -241,16 +211,44 @@ def test_mongo_ordering():
 
 
 @pytest.mark.django_db(databases=["mongodb"])
-def test_mongo_prohibit_nested_queries():
-    # TODO: convert nested queries to aggregations
+def test_mongo_related_queries():
+    """Test basic relationship queries and operations."""
     FooModel.objects.all().delete()
     RelatedModel.objects.all().delete()
 
-    FooModel.objects.create(name="1", json_field={"foo": "bar"})
-    RelatedModel.objects.create(name="related", foo=FooModel.objects.get(name="1"))
+    # Create test data
+    foo1 = FooModel.objects.create(name="foo1", json_field={"type": "parent"})
+    foo2 = FooModel.objects.create(name="foo2", json_field={"type": "parent"})
 
-    with pytest.raises(NotImplementedError):
-        FooModel.objects.filter(related__name="related").delete()
+    # Create related models
+    RelatedModel.objects.create(name="related1", foo=foo1)
+    RelatedModel.objects.create(name="related2", foo=foo1)
+    RelatedModel.objects.create(name="related3", foo=foo2)
+
+    # Test forward relationship queries
+    assert RelatedModel.objects.filter(foo=foo1).count() == 2
+    assert RelatedModel.objects.filter(foo=foo2).count() == 1
+
+    # Test cross-table queries - the official backend supports these!
+    assert RelatedModel.objects.filter(foo__name="foo1").exists()
+    assert RelatedModel.objects.filter(foo__name="foo1").count() == 2
+    assert RelatedModel.objects.filter(foo__name="foo2").count() == 1
+
+    # Test reverse relationship access
+    assert foo1.related.count() == 2
+    assert foo2.related.count() == 1
+    assert list(foo1.related.values_list("name", flat=True).order_by("name")) == [
+        "related1",
+        "related2",
+    ]
+
+    # Test filtering by ID
+    assert RelatedModel.objects.filter(foo_id=foo1.id).count() == 2
+
+    # Test deletion of related objects
+    foo1.related.filter(name="related1").delete()
+    assert foo1.related.count() == 1
+    assert RelatedModel.objects.filter(foo=foo1).count() == 1
 
 
 @pytest.mark.django_db(databases=["mongodb"])
@@ -268,63 +266,119 @@ def test_mongo_distinct():
     ]
 
 
-@pytest.mark.django_db(databases=["mongodb"])
-def test_prefer_search_qs():
-    qs = FooModel.objects.all().prefer_search()
-    assert qs._prefer_search is True
-    qs = qs.filter(name="test")
-    assert qs._prefer_search is True
+# Removed test_prefer_search_qs - prefer_search() not supported in official backend
 
 
 @pytest.mark.skipif(os.environ.get("CI") == "true", reason="CI does not have mongodb search")
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_search_index(search_index):
+    """Test MongoDB Atlas Search functionality using $search aggregation stage.
+
+    This test demonstrates how to use MongoDB Atlas Search with the official
+    django-mongodb-backend. When running against a properly configured Atlas
+    deployment with search indexes, this test will pass.
+
+    The official backend supports $search aggregation stage through the
+    raw_aggregate() method on MongoManager.
+    """
     FooModel.objects.all().delete()
     FooModel.objects.create(name="test", json_field={"foo": "bar"})
     FooModel.objects.create(name="test1", json_field={"foo": "bar"})
-    # search index needs to sync
-    time.sleep(1)
-    # regular search term
-    search_qs = FooModel.objects.annotate(search=SearchVector("name")).filter(
-        search=SearchQuery("test")
-    )
-    assert len(list(search_qs)) == 1
-    # wildcard search term
-    search_qs = FooModel.objects.annotate(search=SearchVector("name", "name2")).filter(
-        search=SearchQuery("test*")
-    )
-    assert len(list(search_qs)) == 2
 
-    prefer_search_qs = FooModel.objects.all().prefer_search().filter(name="test")
-    assert len(list(prefer_search_qs)) == 1
+    # Verify documents were created
+    assert FooModel.objects.count() == 2
 
-    with pytest.raises(RequiresSearchIndex):
-        search_qs = FooModel.objects.annotate(search=SearchVector("datetime_field")).filter(
-            search=SearchQuery("test")
+    # search index needs to sync - increase wait time for consistency
+    time.sleep(2)
+
+    # Regular text search using $search stage
+    # Note: MongoManager is required to use raw_aggregate
+    search_results = list(
+        FooModel.objects.raw_aggregate([{"$search": {"text": {"query": "test", "path": "name"}}}])
+    )
+    assert len(search_results) == 1
+    assert search_results[0].name == "test"
+
+    # Wildcard search across multiple fields
+    wildcard_results = list(
+        FooModel.objects.raw_aggregate(
+            [
+                {
+                    "$search": {
+                        "wildcard": {
+                            "query": "test*",
+                            "path": ["name", "name_2"],
+                            "allowAnalyzedField": True,
+                        }
+                    }
+                }
+            ]
         )
-        assert len(list(search_qs)) == 0
+    )
+    assert len(wildcard_results) == 2
+
+    # Test searching non-indexed field with dynamic: false
+    # MongoDB Atlas Search doesn't throw errors for non-indexed fields,
+    # it simply returns 0 results when the field is not in the index
+    items = list(
+        FooModel.objects.raw_aggregate(
+            [{"$search": {"text": {"query": "test", "path": "datetime_field"}}}]
+        )
+    )
+    assert len(items) == 0
 
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_raw_query():
+    """Test raw MongoDB queries using raw_aggregate with $match."""
     FooModel.objects.all().delete()
     FooModel.objects.create(name="1", json_field={"foo": "bar"}, date_field=datetime.date.today())
     FooModel.objects.create(name="2", json_field={"foo": "bar"}, date_field=datetime.date.today())
 
-    FooModel.objects.filter(RawMongoDBQuery({"name": "1"})).delete()
-    assert len(FooModel.objects.all()) == 1
+    # Use raw_aggregate with $match instead of RawMongoDBQuery
+    # First, find the objects to delete
+    to_delete = list(FooModel.objects.raw_aggregate([{"$match": {"name": "1"}}]))
+    assert len(to_delete) == 1
+
+    # Delete the found objects
+    for obj in to_delete:
+        obj.delete()
+
+    assert FooModel.objects.count() == 1
+
+    # Verify the correct object remains
+    remaining = list(FooModel.objects.all())
+    assert remaining[0].name == "2"
 
 
 @pytest.mark.django_db(databases=["mongodb"])
 def test_mongo_stages():
+    """Test MongoDB aggregation pipeline functionality using raw_aggregate."""
     FooModel.objects.all().delete()
     FooModel.objects.create(name="1", json_field={"foo": "bar"}, date_field=datetime.date.today())
     FooModel.objects.create(name="2", json_field={"foo": "bar"}, date_field=datetime.date.today())
-    assert FooModel.objects.all().add_aggregation_stage({"$match": {"name": "1"}}).count() == 1
-    FooModel.objects.all().add_aggregation_stage({"$match": {"name": "1"}}).delete()
-    assert len(FooModel.objects.all()) == 1
-    FooModel.objects.all().add_aggregation_stage({"$match": {"name": {"$in": ["1", "2"]}}}).delete()
-    assert len(FooModel.objects.all()) == 0
+
+    # The official backend uses raw_aggregate instead of add_aggregation_stage
+    # raw_aggregate requires the primary key (_id) to be included in results
+
+    # Test filtering with aggregation - raw_aggregate returns model instances
+    filtered = list(FooModel.objects.raw_aggregate([{"$match": {"name": "1"}}]))
+    assert len(filtered) == 1
+    assert filtered[0].name == "1"
+
+    # Test multiple matches
+    multiple = list(FooModel.objects.raw_aggregate([{"$match": {"name": {"$in": ["1", "2"]}}}]))
+    assert len(multiple) == 2
+
+    # For count operations, we need to use regular QuerySet methods
+    # since raw_aggregate expects to return model instances
+    assert FooModel.objects.filter(name="1").count() == 1
+
+    # Clean up by deleting specific items
+    FooModel.objects.filter(name="1").delete()
+    assert FooModel.objects.count() == 1
+    FooModel.objects.filter(name="2").delete()
+    assert FooModel.objects.count() == 0
 
 
 @pytest.mark.django_db(databases=["mongodb", "default"])
@@ -384,6 +438,7 @@ def test_decimal_field_none_handling():
 
     # Create a model with nullable decimal field for proper None testing
     class NullableDecimalModel(models.Model):
+        id = ObjectIdAutoField(primary_key=True)
         value = models.DecimalField(null=True, blank=True, decimal_places=2, max_digits=10)
 
         class Meta:
@@ -507,7 +562,11 @@ def test_decimal_field_backward_compatibility():
 
     # Connect directly to MongoDB to insert string decimal values
     db_settings = settings.DATABASES["mongodb"]
-    client = MongoClient(**db_settings["CLIENT"])
+    client = MongoClient(
+        host=db_settings.get("HOST", "localhost"),
+        port=db_settings.get("PORT", 27017),
+        directConnection=db_settings.get("OPTIONS", {}).get("directConnection", False),
+    )
     db = client[db_settings["NAME"]]
     collection = db["testapp_decimalfieldmodel"]
 

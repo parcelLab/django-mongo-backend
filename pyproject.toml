@@ -38,6 +38,15 @@ dev = [
     "ruff>=0.11",
     "pre-commit>=4.2",
 ]
+dev-django = [
+    "python-dotenv>=1.1",
+    "django-jsonform>=2.23",
+    "pytest>=8.3",
+    "pytest-django==4.10.0",
+    "ruff>=0.11",
+    "pre-commit>=4.2",
+    "django>=5.2,<5.3",  # Default to Django 5.2
+]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -103,8 +112,7 @@ commands_pre = [
 
 [tool.tox.env.django52]
 commands_pre = [
-  ["uv", "pip", "install", "--editable", ".[dev]"],
-  ["uv", "pip", "install", "django>=5.2,<5.3"],
+  ["uv", "pip", "install", "--editable", ".[dev-django]"],
 ]
 
 [tool.tox.gh.python]
