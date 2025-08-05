@@ -96,6 +96,7 @@ runner = "virtualenv"
 description = "Run test under {base_python}"
 skip_install = true
 passenv = ["DJANGO_SETTINGS_MODULE", "MONGODB_URL", "PYTEST_ADDOPTS", "CI"]
+allowlist_externals = ["uv", "pytest"]
 commands = [["pytest", "-x", "-vvv", "--capture=no"]]
 
 [tool.tox.env.django5]
