@@ -91,7 +91,9 @@ packages = ["django_mongodb"]
 packages = ["django_mongodb"]
 
 [tool.tox]
-env_list = ["django51", "django52", "django5"]
+# Only test with Django 5.2 for now - django-mongodb-backend 5.2.0b1 is not compatible with Django 5.0/5.1
+env_list = ["django52"]
+# env_list = ["django51", "django52", "django5"]
 
 [tool.tox.env_run_base]
 runner = "virtualenv"
