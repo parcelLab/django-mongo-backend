@@ -121,5 +121,8 @@ commands_pre = [
 ]
 
 [tool.tox.gh.python]
-"3.13" = ["django51", "django52", "django5"]
-"3.12" = ["django51", "django52", "django5"]
+# Only Django 5.2 for now - django-mongodb-backend 5.2.0b1 is not compatible with Django 5.0/5.1
+"3.13" = ["django52"]
+"3.12" = ["django52"]
+# "3.13" = ["django51", "django52", "django5"]
+# "3.12" = ["django51", "django52", "django5"]
