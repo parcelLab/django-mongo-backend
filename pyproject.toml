@@ -37,6 +37,7 @@ dev = [
     "pytest-django==4.10.0",
     "ruff>=0.11",
     "pre-commit>=4.2",
+    "django-mongodb-backend>=5.2.0b1",
 ]
 dev-django = [
     "python-dotenv>=1.1",
@@ -46,6 +47,7 @@ dev-django = [
     "ruff>=0.11",
     "pre-commit>=4.2",
     "django>=5.2,<5.3",  # Default to Django 5.2
+    "django-mongodb-backend>=5.2.0b1",
 ]
 
 [tool.pytest.ini_options]
@@ -95,7 +97,7 @@ env_list = ["django51", "django52", "django5"]
 runner = "virtualenv"
 description = "Run test under {base_python}"
 skip_install = true
-passenv = ["DJANGO_SETTINGS_MODULE", "MONGODB_URL", "PYTEST_ADDOPTS", "CI"]
+passenv = ["DJANGO_SETTINGS_MODULE", "MONGODB_URL", "MONGODB_PORT", "PYTEST_ADDOPTS", "CI"]
 allowlist_externals = ["uv", "pytest"]
 commands = [["pytest", "-x", "-vvv", "--capture=no"]]
 

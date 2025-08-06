@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -90,7 +91,7 @@ DATABASES = {
         "ENGINE": "django_mongodb_backend",
         "NAME": "django_mongodb_db",
         "HOST": "localhost",
-        "PORT": 3307,  # Atlas local deployment port
+        "PORT": int(os.environ.get("MONGODB_PORT", 3307)),  # Default to Atlas local deployment port
         "OPTIONS": {
             "directConnection": True,  # Required for Atlas local deployment
         },
